@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import './Clients.css';
@@ -11,12 +11,7 @@ function Clients() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchClients();
-    fetchDocuments();
-  }, []);
-
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async () => {
     try {
       const response = await api.get('/clients');
       setClients(response.data.clients || []);
@@ -26,9 +21,9 @@ function Clients() {
         navigate('/login');
       }
     }
-  };
+  }, [navigate]);
 
-  const fetchDocuments = async () => {
+  const fetchDocuments = useCallback(async () => {
     try {
       const response = await api.get('/documents');
       setDocuments(response.data.documents || []);
@@ -37,7 +32,12 @@ function Clients() {
       console.error('Error fetching documents:', error);
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchClients();
+    fetchDocuments();
+  }, [fetchClients, fetchDocuments]);
 
   const getClientDocuments = (clientId) => {
     let docs = documents.filter(doc => doc.clientId?._id === clientId);
@@ -45,20 +45,6 @@ function Clients() {
       docs = docs.filter(doc => doc.documentType === filter);
     }
     return docs;
-  };
-
-  const handleDeleteDocument = async (docId) => {
-    if (!window.confirm('Are you sure you want to delete this document?')) {
-      return;
-    }
-    try {
-      await api.delete(`/documents/${docId}`);
-      setDocuments(documents.filter(doc => doc._id !== docId));
-      alert('Document deleted successfully');
-    } catch (error) {
-      console.error('Error deleting document:', error);
-      alert('Failed to delete document');
-    }
   };
 
   const handleClientClick = (clientId) => {

@@ -3,6 +3,7 @@ import axios from 'axios';
 import './Admin.css';
 
 const API = process.env.REACT_APP_API_URL || 'https://ca-backend-cqed.onrender.com/api';
+const ADMIN_HEADERS = { 'x-admin-password': 'zintechca' };
 
 function Admin() {
   const [authed, setAuthed] = useState(false);
@@ -17,12 +18,10 @@ function Admin() {
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '' });
   const [msg, setMsg] = useState('');
 
-  const headers = { 'x-admin-password': 'zintechca' };
-
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API}/admin/users`, { headers });
+      const res = await axios.get(`${API}/admin/users`, { headers: ADMIN_HEADERS });
       setUsers(res.data.users);
     } catch {
       setMsg('Failed to load users');
@@ -47,7 +46,7 @@ function Admin() {
   const handleViewDetail = async (userId) => {
     setSelectedUser(userId);
     try {
-      const res = await axios.get(`${API}/admin/users/${userId}`, { headers });
+      const res = await axios.get(`${API}/admin/users/${userId}`, { headers: ADMIN_HEADERS });
       setUserDetail(res.data);
     } catch {
       setMsg('Failed to load user details');
@@ -57,7 +56,7 @@ function Admin() {
   const handleDelete = async (userId, userName) => {
     if (!window.confirm(`Delete user "${userName}" and ALL their data? This cannot be undone.`)) return;
     try {
-      await axios.delete(`${API}/admin/users/${userId}`, { headers });
+      await axios.delete(`${API}/admin/users/${userId}`, { headers: ADMIN_HEADERS });
       setMsg(`User "${userName}" deleted successfully`);
       setSelectedUser(null);
       setUserDetail(null);
@@ -70,7 +69,7 @@ function Admin() {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`${API}/admin/users`, newUser, { headers });
+      await axios.post(`${API}/admin/users`, newUser, { headers: ADMIN_HEADERS });
       setMsg(`User "${newUser.name}" created successfully`);
       setNewUser({ name: '', email: '', password: '' });
       setShowCreate(false);

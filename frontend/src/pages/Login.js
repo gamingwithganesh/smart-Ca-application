@@ -52,6 +52,11 @@ function Login({ onLogin }) {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
+
+        <div className="admin-login-link-wrap">
+          <Link to="/admin" className="admin-login-link">Admin Login</Link>
+        </div>
+
         <p className="auth-link">
           Don't have an account? <Link to="/register">Register</Link>
         </p>
