@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Marksheet Fix</title>
+</head>
+<body>
+    <h3>Enter Roll Number:</h3>
+    <input type="text" id="rollNo" value="387247">
+    <button onclick="getMarks()">View Marksheet</button>
+    <hr>
+    <div id="result">
+        <!-- Results will load here -->
+    </div>
+
+    <script>
+        function getMarks() {
+            const roll = document.getElementById('rollNo').value;
+            const baseUrl = "https://uonex.in";
+            const params = `?rollno=${roll}&session=WINTER-2025&courseCode=3055&faculty=2&degree=B.COM&department=U`;
+            
+            const finalUrl = baseUrl + params;
+            
+            // This injects the exact frame the website uses
+            document.getElementById('result').innerHTML = `
+                <p>Loading for Roll No: ${roll}...</p>
+                <iframe src="${finalUrl}" width="100%" height="600px"></iframe>
+            `;
+        }
+    </script>
+</body>
+</html>
