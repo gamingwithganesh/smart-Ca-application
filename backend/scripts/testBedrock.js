@@ -7,7 +7,7 @@ const bedrock = new AWS.BedrockRuntime({
     region: process.env.AWS_REGION || 'us-east-1'
 });
 
-const userMessage = 'mala maglya varshi cha income tas pajije';
+const userMessage = 'mala magcha varshicha ITR pahije';
 
 const prompt = `You are a document assistant for a CA (Chartered Accountant) firm.
 

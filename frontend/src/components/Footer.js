@@ -58,24 +58,25 @@ const Footer = () => {
               <li className="contact-item">
                 <Mail className="contact-icon" size={20} />
                 <a href="mailto:support@smartcadocs.com" className="footer-link">
-                  support@smartcadocs.com
+                  main@zintech.in
                 </a>
               </li>
               <li className="contact-item">
                 <Phone className="contact-icon" size={20} />
-                <span>+91 1800-123-4567</span>
+                <span>8010449610</span>
               </li>
               <li className="contact-item">
                 <MapPin className="contact-icon" size={20} />
-                <span>Bandra Kurla Complex, Mumbai, Maharashtra 400051</span>
+                <span>manish nagar,Nagpur, Maharashtra 400051</span>
               </li>
             </ul>
             
             {/* Social Icons */}
             <div className="social-links">
               <a href="https://zintech.in" target="_blank" rel="noreferrer" className="social-link" aria-label="Z INTECH website">
-                <Globe size={20} />
+                <Globe size={20} /> 
               </a>
+              Z INTECH PVT LTD
               <a href="https://zintech.in" target="_blank" rel="noreferrer" className="social-link" aria-label="Visit Z INTECH">
                 <ExternalLink size={20} />
               </a>
