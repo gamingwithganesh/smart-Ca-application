@@ -11,6 +11,7 @@ import Clients from './pages/Clients';
 import ClientDetail from './pages/ClientDetail';
 import Navbar from './components/Navbar';
 import { getMe } from './api';
+import Footer from './components/Footer';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -82,6 +83,7 @@ function App() {
           <Route path="/" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} />} />
           <Route path="/admin" element={<Admin />} />
         </Routes>
+        <Footer/>
       </div>
     </Router>
   );

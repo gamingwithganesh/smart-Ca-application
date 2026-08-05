@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import './Admin.css';
 
-const API = process.env.REACT_APP_API_URL || 'https://ca-backend-cqed.onrender.com/api';
+const API = import.meta.env.VITE_API_URL || 'https://ca-backend-cqed.onrender.com/api';
 const ADMIN_HEADERS = { 'x-admin-password': 'zintechca' };
 
 function Admin() {
