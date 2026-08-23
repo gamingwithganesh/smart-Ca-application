@@ -66,8 +66,20 @@ export async function GET(req) {
       });
     }
 
-    // Case C: Fallback PDF for legacy placeholder files
-    const pdfFileName = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
+    // Case C: Fallback for legacy placeholder files with correct file-type matching
+    const ext = path.extname(filename).toLowerCase();
+    if (ext === '.png' || ext === '.jpg' || ext === '.jpeg') {
+      const samplePngBuffer = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+      const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
+      return new NextResponse(samplePngBuffer, {
+        headers: {
+          'Content-Type': contentType,
+          'Content-Disposition': `attachment; filename="${filename}"`
+        }
+      });
+    }
+
+    const pdfFileName = filename.endsWith('.pdf') ? filename : `${filename.replace(/\.[^/.]+$/, '')}.pdf`;
     const samplePdfContent = `%PDF-1.4
 1 0 obj
 << /Type /Catalog /Pages 2 0 R >>
