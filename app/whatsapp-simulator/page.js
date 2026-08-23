@@ -120,24 +120,25 @@ export default function WhatsAppSimulator() {
     const lines = text.split('\n');
 
     return lines.map((line, lineIdx) => {
-      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      const urlRegex = /(https?:\/\/[^\s]+|\/uploads\/[^\s]+|\/api\/[^\s]+)/gi;
       const parts = line.split(urlRegex);
 
       return (
         <div key={lineIdx} className="my-0.5">
           {parts.map((part, partIdx) => {
-            if (part.match(urlRegex)) {
+            if (part.match(/^(https?:\/\/[^\s]+|\/uploads\/[^\s]+|\/api\/[^\s]+)$/i)) {
               return (
                 <a
                   key={partIdx}
                   href={part}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 bg-emerald-800 text-white text-xs px-3 py-1.5 rounded-lg font-semibold my-1 hover:bg-emerald-700 transition"
+                  download
+                  className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs px-3.5 py-2 rounded-xl font-bold my-1 shadow-sm transition-all"
                 >
                   <FileText size={14} />
                   <span>Download Document</span>
-                  <Download size={12} />
+                  <Download size={14} />
                 </a>
               );
             }
