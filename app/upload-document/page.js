@@ -51,6 +51,9 @@ export default function UploadDocument() {
     const token = localStorage.getItem('token');
     const uploadData = new FormData();
     uploadData.append('file', file);
+    if (formData.clientId) {
+      uploadData.append('clientId', formData.clientId);
+    }
 
     try {
       const res = await fetch('/api/documents/upload-file', {
@@ -70,7 +73,12 @@ export default function UploadDocument() {
       setFormData((prev) => ({
         ...prev,
         fileUrl: data.fileUrl,
-        fileName: data.fileName || file.name
+        fileName: data.fileName || file.name,
+        s3Key: data.s3Key || '',
+        bucket: data.bucket || '',
+        mimeType: data.mimeType || '',
+        fileSize: data.fileSize || 0,
+        storageType: data.storageType || 's3'
       }));
     } catch (err) {
       setError(err.message);

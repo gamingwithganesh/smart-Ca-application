@@ -79,8 +79,8 @@ npm install aws-sdk multer-s3
 ```env
 AWS_ACCESS_KEY_ID=your_access_key
 AWS_SECRET_ACCESS_KEY=your_secret_key
-AWS_REGION=ap-south-1
-AWS_S3_BUCKET=your-ca-firm-documents
+AWS_S3_REGION=us-east-1
+AWS_S3_BUCKET_NAME=caapp123
 ```
 
 6. **Update Document Controller:**

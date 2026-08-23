@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { UserPlus, Trash2, Phone, Building } from 'lucide-react';
+import { UserPlus, Trash2, Phone, Building, FileText } from 'lucide-react';
 
 export default function Clients() {
   const router = useRouter();
@@ -107,8 +107,14 @@ export default function Clients() {
                 </div>
               </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-200/60 flex justify-between items-center">
-                <span className="text-[10px] text-slate-400 font-medium">Created: {new Date(client.createdAt).toLocaleDateString()}</span>
+              <div className="mt-6 pt-4 border-t border-slate-200/60 flex justify-between items-center gap-2">
+                <Link
+                  href={`/clients/${client._id}`}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 transition shadow-xs"
+                >
+                  <FileText size={14} />
+                  <span>Uploaded Documents</span>
+                </Link>
                 <button
                   onClick={() => handleDelete(client._id)}
                   className="text-slate-400 hover:text-rose-600 p-2 rounded-xl hover:bg-rose-50 transition"
