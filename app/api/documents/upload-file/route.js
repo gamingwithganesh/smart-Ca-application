@@ -33,8 +33,8 @@ export async function POST(req) {
     const awsAccessKeyId = (process.env.AWS_ACCESS_KEY_ID || '').trim();
     const awsSecretKey = (process.env.AWS_SECRET_ACCESS_KEY || '').trim();
 
-    // Check if valid AWS S3 credentials exist
-    if (s3BucketName && awsAccessKeyId && awsSecretKey && !awsAccessKeyId.includes('your_') && !awsAccessKeyId.includes('BedrockAPIKey')) {
+    // Check if AWS S3 bucket and credentials exist
+    if (s3BucketName && awsAccessKeyId && awsSecretKey && !awsAccessKeyId.includes('your_')) {
       try {
         const region = (process.env.AWS_S3_REGION || process.env.AWS_REGION || 'us-east-1').trim();
         const s3 = new AWS.S3({
@@ -51,8 +51,18 @@ export async function POST(req) {
           ContentType: file.type || 'application/octet-stream'
         }).promise();
 
-        fileUrl = uploadResult.Location || `https://${s3BucketName}.s3.${region}.amazonaws.com/${s3Key}`;
+        try {
+          fileUrl = await s3.getSignedUrlPromise('getObject', {
+            Bucket: s3BucketName,
+            Key: s3Key,
+            Expires: 604800
+          });
+        } catch (signErr) {
+          fileUrl = uploadResult.Location || `https://${s3BucketName}.s3.${region}.amazonaws.com/${s3Key}`;
+        }
+
         storageType = 's3';
+        console.log('✅ Document uploaded successfully to AWS S3 Bucket:', fileUrl);
       } catch (s3Err) {
         console.warn('⚠️ AWS S3 Bucket upload failed, using local storage fallback:', s3Err.message);
       }
