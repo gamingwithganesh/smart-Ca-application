@@ -127,13 +127,13 @@ export default function WhatsAppSimulator() {
         <div key={lineIdx} className="my-0.5">
           {parts.map((part, partIdx) => {
             if (part.match(/^(https?:\/\/[^\s]+|\/uploads\/[^\s]+|\/api\/[^\s]+)$/i)) {
+              const downloadUrl = `/api/documents/download?url=${encodeURIComponent(part)}`;
               return (
                 <a
                   key={partIdx}
-                  href={part}
+                  href={downloadUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  download
                   className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs px-3.5 py-2 rounded-xl font-bold my-1 shadow-sm transition-all"
                 >
                   <FileText size={14} />
