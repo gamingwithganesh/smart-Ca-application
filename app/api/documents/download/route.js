@@ -35,7 +35,7 @@ export async function GET(req) {
           return new NextResponse(Buffer.from(arrayBuffer), {
             headers: {
               'Content-Type': contentType,
-              'Content-Disposition': `attachment; filename="${filename}"`
+              'Content-Disposition': `inline; filename="${filename}"`
             }
           });
         }
@@ -61,7 +61,7 @@ export async function GET(req) {
       return new NextResponse(fileBuffer, {
         headers: {
           'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${filename}"`
+          'Content-Disposition': `inline; filename="${filename}"`
         }
       });
     }
@@ -74,7 +74,7 @@ export async function GET(req) {
       return new NextResponse(samplePngBuffer, {
         headers: {
           'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${filename}"`
+          'Content-Disposition': `inline; filename="${filename}"`
         }
       });
     }
@@ -125,7 +125,7 @@ startxref
     return new NextResponse(Buffer.from(samplePdfContent), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${pdfFileName}"`
+        'Content-Disposition': `inline; filename="${pdfFileName}"`
       }
     });
 

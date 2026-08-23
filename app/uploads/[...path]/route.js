@@ -44,7 +44,7 @@ export async function GET(req, { params }) {
       return new NextResponse(samplePngBuffer, {
         headers: {
           'Content-Type': contentType,
-          'Content-Disposition': `attachment; filename="${filename}"`
+          'Content-Disposition': `inline; filename="${filename}"`
         }
       });
     }
@@ -106,7 +106,7 @@ startxref
     return new NextResponse(Buffer.from(samplePdfContent), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${pdfFileName}"`
+        'Content-Disposition': `inline; filename="${pdfFileName}"`
       }
     });
   } catch (error) {
