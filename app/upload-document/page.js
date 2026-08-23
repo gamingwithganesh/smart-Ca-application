@@ -107,20 +107,16 @@ export default function UploadDocument() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
 
     let finalFileUrl = formData.fileUrl?.trim();
     let finalFileName = formData.fileName?.trim();
 
-    // Auto-generate storage URL if user doesn't have a URL or upload file
     if (!finalFileUrl) {
-      const timestamp = Date.now();
-      const docTypeLower = formData.documentType.toLowerCase();
-      finalFileUrl = `/uploads/${docTypeLower}_${formData.year}_${timestamp}.pdf`;
-      if (!finalFileName) {
-        finalFileName = `${formData.documentType}_${formData.year}.pdf`;
-      }
+      setError('Please choose a document file from your computer system to upload!');
+      return;
     }
+
+    setLoading(true);
 
     const payload = {
       ...formData,
