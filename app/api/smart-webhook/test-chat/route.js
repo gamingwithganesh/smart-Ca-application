@@ -23,7 +23,7 @@ export async function POST(req) {
     console.error('Next.js webhook test-chat error:', error);
     return NextResponse.json({
       success: false,
-      responseText: 'An error occurred while processing your message in Next.js backend.'
+      responseText: `An error occurred while processing your message in Next.js backend: ${error.message || 'Unknown error'}`
     }, { status: 500 });
   }
 }
