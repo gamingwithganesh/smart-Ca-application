@@ -69,7 +69,7 @@ export async function GET(req) {
     // Case C: Fallback for legacy placeholder files with correct file-type matching
     const ext = path.extname(filename).toLowerCase();
     if (ext === '.png' || ext === '.jpg' || ext === '.jpeg') {
-      const samplePngBuffer = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+      const samplePngBuffer = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAAP0lEQVR42u3RAQ0AAAgDIK1/ab2x8YADSA4ZBgEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBwWvABR0wAT08hP8AAAAASUVORK5CYII=', 'base64');
       const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
       return new NextResponse(samplePngBuffer, {
         headers: {

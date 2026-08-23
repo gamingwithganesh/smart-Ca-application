@@ -31,9 +31,26 @@ export async function GET(req, { params }) {
       });
     }
 
-    // 2. Fallback: Generate dynamic valid PDF document for legacy / sample files
+    // 2. Fallback: Generate dynamic valid file content based on requested extension
+    const ext = path.extname(filename).toLowerCase();
+    if (ext === '.png' || ext === '.jpg' || ext === '.jpeg') {
+      const samplePngBuffer = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAAP0lEQVR42u3RAQ0AAAgDIK1/ab2x8YADSA4ZBgEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBwWvABR0wAT08hP8AAAAASUVORK5CYII=', 'base64');
+      const contentType = ext === '.png' ? 'image/png' : 'image/jpeg';
+      try {
+        const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+        fs.writeFileSync(localFilePath, samplePngBuffer);
+      } catch (e) {}
+      return new NextResponse(samplePngBuffer, {
+        headers: {
+          'Content-Type': contentType,
+          'Content-Disposition': `attachment; filename="${filename}"`
+        }
+      });
+    }
+
     const cleanName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const pdfFileName = cleanName.endsWith('.pdf') ? cleanName : `${cleanName}.pdf`;
+    const pdfFileName = cleanName.endsWith('.pdf') ? cleanName : `${cleanName.replace(/\.[^/.]+$/, '')}.pdf`;
 
     const samplePdfContent = `%PDF-1.4
 1 0 obj
