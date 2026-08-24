@@ -49,13 +49,63 @@ export default function UploadDocument() {
     setError('');
 
     const token = localStorage.getItem('token');
-    const uploadData = new FormData();
-    uploadData.append('file', file);
-    if (formData.clientId) {
-      uploadData.append('clientId', formData.clientId);
-    }
+    const fileSizeMB = file.size / (1024 * 1024);
 
     try {
+      // 1. For files larger than 4MB, use Direct S3 Pre-signed URL upload to bypass Vercel serverless limit
+      if (fileSizeMB > 4) {
+        const presignedRes = await fetch('/api/documents/presigned-upload-url', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            fileName: file.name,
+            contentType: file.type || 'application/octet-stream',
+            clientId: formData.clientId || 'general'
+          })
+        });
+
+        const presignedData = await presignedRes.json();
+        if (!presignedRes.ok) {
+          throw new Error(presignedData.message || 'Failed to generate S3 upload link');
+        }
+
+        // Direct Browser -> AWS S3 PUT upload
+        const s3PutRes = await fetch(presignedData.uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': file.type || 'application/octet-stream'
+          },
+          body: file
+        });
+
+        if (!s3PutRes.ok) {
+          throw new Error(`Direct AWS S3 Upload failed (HTTP ${s3PutRes.status}). Check S3 bucket CORS permissions.`);
+        }
+
+        setSelectedFile(file);
+        setFormData((prev) => ({
+          ...prev,
+          fileUrl: presignedData.fileUrl,
+          fileName: file.name,
+          s3Key: presignedData.s3Key,
+          bucket: presignedData.bucket,
+          mimeType: file.type || 'application/octet-stream',
+          fileSize: file.size,
+          storageType: 's3'
+        }));
+        return;
+      }
+
+      // 2. For standard size files <= 4MB, upload via server endpoint
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      if (formData.clientId) {
+        uploadData.append('clientId', formData.clientId);
+      }
+
       const res = await fetch('/api/documents/upload-file', {
         method: 'POST',
         headers: {
@@ -81,6 +131,7 @@ export default function UploadDocument() {
         storageType: data.storageType || 's3'
       }));
     } catch (err) {
+      console.error('Upload document error:', err);
       setError(err.message);
     } finally {
       setUploadingFile(false);

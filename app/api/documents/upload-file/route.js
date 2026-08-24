@@ -43,17 +43,34 @@ export async function POST(req) {
       storageType = 's3';
       // Route access through secure download route with pre-signed URL generator
       fileUrl = `/api/documents/download?key=${encodeURIComponent(s3Key)}`;
-      console.log('✅ Document uploaded successfully to AWS S3 Bucket (caapp123):', s3Key);
+      console.log('✅ Document uploaded successfully to AWS S3 Bucket:', s3Key);
     } catch (s3Err) {
-      console.warn('⚠️ AWS S3 Bucket upload failed, using local storage fallback:', s3Err.message);
+      console.warn('⚠️ AWS S3 Bucket upload failed:', s3Err.message);
 
-      // Save to local public/uploads directory as fallback
-      const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
+      const isVercel = Boolean(process.env.VERCEL || process.env.NEXT_PUBLIC_VERCEL_ENV);
+      
+      // Try local fallback ONLY on non-Vercel local development environments
+      let localFallbackSuccess = false;
+      if (!isVercel) {
+        try {
+          const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+          if (!fs.existsSync(uploadsDir)) {
+            fs.mkdirSync(uploadsDir, { recursive: true });
+          }
+          const filePath = path.join(uploadsDir, savedFileName);
+          fs.writeFileSync(filePath, buffer);
+          localFallbackSuccess = true;
+          console.log('📁 Local storage fallback succeeded (Development Mode)');
+        } catch (fsErr) {
+          console.error('❌ Local filesystem fallback failed:', fsErr.message);
+        }
       }
-      const filePath = path.join(uploadsDir, savedFileName);
-      fs.writeFileSync(filePath, buffer);
+
+      if (!localFallbackSuccess) {
+        return NextResponse.json({
+          message: `AWS S3 Upload Failed (${s3Err.message}). Please check AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_BUCKET_NAME, and AWS_S3_REGION in your Vercel Project Settings.`
+        }, { status: 500 });
+      }
     }
 
     return NextResponse.json({
