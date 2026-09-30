@@ -164,6 +164,9 @@ export async function POST(req) {
     const cat = category || documentType || 'General';
     const name = documentName || fileName || `${docType}_${fy}.pdf`;
 
+    const computedSavedFileName = savedFileName || (fileUrl?.startsWith('/uploads/') ? fileUrl.replace('/uploads/', '') : (s3Key ? s3Key.split('/').pop() : ''));
+    const computedLocalFilePath = localFilePath || (fileUrl?.startsWith('/uploads/') ? fileUrl : (computedSavedFileName ? `/uploads/${computedSavedFileName}` : ''));
+
     let computedBase64 = body.fileBase64 || body.fileData || '';
     if (!computedBase64 && computedSavedFileName) {
       try {
@@ -192,10 +195,10 @@ export async function POST(req) {
       fileBase64: computedBase64,
       fileData: computedBase64,
       s3Key: s3Key || '',
-      bucket: bucket || (s3Key ? 'caapp123' : ''),
+      bucket: bucket || (s3Key ? 'zintech-ca-documents-prod' : ''),
       mimeType: mimeType || '',
       fileSize: fileSize || 0,
-      storageType: computedBase64 ? 'cloud_db' : (storageType || (s3Key ? 's3' : 'local')),
+      storageType: s3Key ? 's3' : (computedBase64 ? 'cloud_db' : (storageType || 'local')),
       paymentAmount: paymentAmount !== undefined ? Number(paymentAmount) : 500,
       paymentStatus: paymentStatus || 'PENDING',
       paymentNotes: paymentNotes || '',
