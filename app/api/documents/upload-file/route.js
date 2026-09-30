@@ -59,6 +59,8 @@ export async function POST(req) {
       storageType = 'local';
     }
 
+    const fileBase64 = buffer.toString('base64');
+
     return NextResponse.json({
       success: true,
       fileUrl,
@@ -67,6 +69,8 @@ export async function POST(req) {
       mimeType: contentType,
       savedFileName,
       storageType,
+      fileBase64,
+      fileData: fileBase64,
       s3Key,
       bucket: BUCKET_NAME
     });

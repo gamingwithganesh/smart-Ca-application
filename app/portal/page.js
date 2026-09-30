@@ -356,6 +356,32 @@ export default function ClientPortal() {
     }
   };
 
+  const handleDownloadDocument = async (url, fileName = 'document.pdf') => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        let msg = 'Document file is currently not available on server storage';
+        try {
+          const errData = await res.json();
+          msg = errData.message || msg;
+        } catch (_) {}
+        alert(`⚠️ ${msg}`);
+        return;
+      }
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      alert(`⚠️ Download error: ${err.message}`);
+    }
+  };
+
   const formatText = (content) => {
     if (!content) return '';
     const lines = content.split('\n');
@@ -707,15 +733,14 @@ export default function ClientPortal() {
                               </button>
 
                               {isPaid ? (
-                                <a
-                                  href={doc.fileUrl}
-                                  download
-                                  className="bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl transition flex items-center gap-1 font-bold text-xs shadow-xs"
+                                <button
+                                  onClick={() => handleDownloadDocument(doc.fileUrl, doc.originalFilename || doc.fileName || 'document.pdf')}
+                                  className="bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl transition flex items-center gap-1 font-bold text-xs shadow-xs cursor-pointer"
                                   title="Download Clean Original"
                                 >
                                   <Download size={13} />
                                   <span>Download</span>
-                                </a>
+                                </button>
                               ) : (
                                 <button
                                   onClick={() => handleOpenPaymentModal(doc)}
@@ -938,14 +963,13 @@ export default function ClientPortal() {
 
               <div className="flex items-center gap-2">
                 {previewDoc.paymentStatus === 'COMPLETED' || previewDoc.paymentStatus === 'FREE' ? (
-                  <a
-                    href={previewDoc.fileUrl}
-                    download
-                    className="btn-primary px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 font-bold shadow-sm"
+                  <button
+                    onClick={() => handleDownloadDocument(previewDoc.fileUrl, previewDoc.originalFilename || previewDoc.fileName || 'document.pdf')}
+                    className="btn-primary px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 font-bold shadow-sm cursor-pointer"
                   >
                     <Download size={14} />
                     <span>Download Clean Original</span>
-                  </a>
+                  </button>
                 ) : (
                   <button
                     onClick={() => {
@@ -1016,14 +1040,13 @@ export default function ClientPortal() {
                 </div>
 
                 <div className="pt-2 flex flex-col gap-2">
-                  <a
-                    href={paymentSuccessData.fileUrl}
-                    download
-                    className="btn-primary py-3 rounded-xl text-xs flex items-center justify-center gap-2 font-bold shadow-md"
+                  <button
+                    onClick={() => handleDownloadDocument(paymentSuccessData.fileUrl, paymentSuccessData.fileName || 'Clean_Document.pdf')}
+                    className="btn-primary py-3 rounded-xl text-xs flex items-center justify-center gap-2 font-bold shadow-md cursor-pointer"
                   >
                     <Download size={15} />
                     <span>Download Clean Official Document</span>
-                  </a>
+                  </button>
                   <button
                     onClick={() => setShowPaymentModal(false)}
                     className="btn-outline py-2.5 rounded-xl text-xs font-bold cursor-pointer"

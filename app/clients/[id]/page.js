@@ -581,6 +581,32 @@ export default function ClientDocuments({ params }) {
     setTimeout(() => setCopiedCredentials(false), 3000);
   };
 
+  const handleDownloadDocument = async (url, fileName = 'document.pdf') => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        let msg = 'Document file is currently not available on storage';
+        try {
+          const errData = await res.json();
+          msg = errData.message || msg;
+        } catch (_) {}
+        showNotification(`⚠️ ${msg}`, 'error');
+        return;
+      }
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      showNotification(`⚠️ Download error: ${err.message}`, 'error');
+    }
+  };
+
   // Search & Filter logic for Documents
   const filteredDocuments = documents
     .filter((doc) => {
@@ -999,14 +1025,13 @@ export default function ClientDocuments({ params }) {
                             </a>
 
                             {/* Download Button */}
-                            <a
-                              href={`/api/documents/download?id=${doc._id}`}
-                              download
-                              className="bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-300 p-2 rounded-xl transition font-bold text-[11px]"
+                            <button
+                              onClick={() => handleDownloadDocument(`/api/documents/download?id=${doc._id}`, doc.originalFilename || doc.fileName || 'document.pdf')}
+                              className="bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-300 p-2 rounded-xl transition font-bold text-[11px] cursor-pointer"
                               title="Download File"
                             >
                               <Download size={14} />
-                            </a>
+                            </button>
 
                             {/* Edit Button */}
                             <button

@@ -49,6 +49,32 @@ export default function PaymentHistoryTable({ userRole = 'client' }) {
     }
   };
 
+  const handleDownloadDocument = async (url, fileName = 'Document.pdf') => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        let msg = 'Document file is currently not available on storage';
+        try {
+          const errData = await res.json();
+          msg = errData.message || msg;
+        } catch (_) {}
+        alert(`⚠️ ${msg}`);
+        return;
+      }
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      alert(`⚠️ Download failed: ${err.message}`);
+    }
+  };
+
   const filteredPayments = payments.filter((p) => {
     const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
     const query = search.toLowerCase().trim();
@@ -234,14 +260,13 @@ export default function PaymentHistoryTable({ userRole = 'client' }) {
 
                   <td className="py-3 px-4 text-right">
                     {p.purpose === 'document_fee' && p.document?.id && p.status === 'PAID' ? (
-                      <a
-                        href={`/api/documents/download?id=${p.document.id}`}
-                        download
-                        className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-xl transition"
+                      <button
+                        onClick={() => handleDownloadDocument(`/api/documents/download?id=${p.document.id}`, p.document?.name || 'Tax_Document.pdf')}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-xl transition cursor-pointer"
                       >
                         <Download size={11} />
                         <span>Download</span>
-                      </a>
+                      </button>
                     ) : p.status === 'PAID' ? (
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-xl">
                         <span>Invoice Settled</span>

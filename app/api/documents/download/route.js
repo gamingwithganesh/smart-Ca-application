@@ -29,14 +29,19 @@ function getMimeType(fileName, defaultMime = 'application/octet-stream') {
 }
 
 export async function GET(req) {
+  const startTime = Date.now();
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
+  const key = searchParams.get('key');
+  const rawUrl = searchParams.get('url') || searchParams.get('file');
+
+  let doc = null;
+  let storageError = null;
+  let signedUrl = null;
+  let finalStatus = 404;
+
   try {
     await dbConnect();
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-    const key = searchParams.get('key');
-    const rawUrl = searchParams.get('url') || searchParams.get('file');
-
-    let doc = null;
 
     if (id) {
       doc = await Document.findById(id).populate('clientId').catch(() => null);
@@ -57,9 +62,42 @@ export async function GET(req) {
     }
 
     const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+    const effectiveClientId = doc?.clientId?._id || doc?.clientId || 'N/A';
+    const effectiveBucket = doc?.bucket || BUCKET_NAME || 'caapp123';
+    const effectiveStoragePath = doc?.s3Key || doc?.savedFileName || doc?.localFilePath || 'N/A';
 
-    // 1. Check if the physical file exists on Local Disk (public/uploads/)
+    // DIAGNOSTIC LOGGING (Step 1 requirement)
+    console.log('=== [DOCUMENT DOWNLOAD DIAGNOSTIC] ===');
+    console.log('DOCUMENT ID:', id || key || rawUrl || 'N/A');
+    console.log('DATABASE RECORD:', doc ? 'EXISTS' : 'MISSING');
+    console.log('CLIENT ID:', effectiveClientId);
+    console.log('BUCKET:', effectiveBucket);
+    console.log('STORAGE PATH:', effectiveStoragePath);
+
     if (doc) {
+      const sendName = doc.originalFilename || doc.fileName || `${doc.documentType || 'document'}_${doc.financialYear || doc.year || 'file'}.pdf`;
+      const fallbackMime = doc.mimeType || getMimeType(sendName);
+
+      // 1. Cloud Database Storage: check doc.fileBase64 or doc.fileData
+      const base64Data = doc.fileBase64 || doc.fileData;
+      if (base64Data && typeof base64Data === 'string' && base64Data.length > 20) {
+        const fileBuffer = Buffer.from(base64Data, 'base64');
+        finalStatus = 200;
+        console.log('STORAGE PROVIDER: MongoDB Cloud Buffer (100% Serverless Resilient)');
+        console.log('FINAL STATUS: 200 OK');
+
+        return new NextResponse(fileBuffer, {
+          status: 200,
+          headers: {
+            'Content-Type': fallbackMime,
+            'Content-Disposition': `inline; filename="${encodeURIComponent(sendName)}"`,
+            'Content-Length': String(fileBuffer.length),
+            'Cache-Control': 'public, max-age=3600'
+          }
+        });
+      }
+
+      // 2. Local Disk Storage: public/uploads/
       const candidateNames = [
         doc.savedFileName,
         doc.localFilePath ? doc.localFilePath.replace(/^\/?uploads\//, '') : null,
@@ -68,19 +106,22 @@ export async function GET(req) {
         doc.originalFilename
       ].filter(Boolean);
 
-      // Check direct candidate filenames on local disk
       for (const cand of candidateNames) {
         const localPath = path.join(uploadsDir, cand);
         if (fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
           const fileBuffer = fs.readFileSync(localPath);
           const ext = path.extname(cand).toLowerCase();
-          const contentType = ext ? getMimeType(cand) : (doc.mimeType || 'application/octet-stream');
-          const sendName = doc.fileName || cand;
+          const contentType = ext ? getMimeType(cand) : fallbackMime;
+          finalStatus = 200;
+          console.log('STORAGE PROVIDER: Local Ephemeral Disk');
+          console.log('FINAL STATUS: 200 OK');
 
           return new NextResponse(fileBuffer, {
+            status: 200,
             headers: {
               'Content-Type': contentType,
               'Content-Disposition': `inline; filename="${encodeURIComponent(sendName)}"`,
+              'Content-Length': String(fileBuffer.length),
               'Cache-Control': 'public, max-age=3600'
             }
           });
@@ -101,13 +142,17 @@ export async function GET(req) {
             const localPath = path.join(uploadsDir, f);
             if (fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
               const fileBuffer = fs.readFileSync(localPath);
-              const contentType = getMimeType(f, doc.mimeType || 'application/octet-stream');
-              const sendName = doc.fileName || f;
+              const contentType = getMimeType(f, fallbackMime);
+              finalStatus = 200;
+              console.log('STORAGE PROVIDER: Local Disk (Fuzzy Match)');
+              console.log('FINAL STATUS: 200 OK');
 
               return new NextResponse(fileBuffer, {
+                status: 200,
                 headers: {
                   'Content-Type': contentType,
                   'Content-Disposition': `inline; filename="${encodeURIComponent(sendName)}"`,
+                  'Content-Length': String(fileBuffer.length),
                   'Cache-Control': 'public, max-age=3600'
                 }
               });
@@ -116,40 +161,48 @@ export async function GET(req) {
         }
       }
 
-      // 2. S3 Storage: Stream directly if S3 configured
+      // 3. AWS S3 Storage
       if (doc.s3Key && isS3Configured()) {
         try {
           const { GetObjectCommand } = await import('@aws-sdk/client-s3');
           const s3Response = await s3Client.send(new GetObjectCommand({
-            Bucket: BUCKET_NAME,
+            Bucket: effectiveBucket,
             Key: doc.s3Key
           }));
 
           if (s3Response.Body) {
             const byteArray = await s3Response.Body.transformToByteArray();
             const contentType = s3Response.ContentType || getMimeType(doc.s3Key, 'application/octet-stream');
+            finalStatus = 200;
+            console.log('STORAGE PROVIDER: AWS S3 Stream');
+            console.log('FINAL STATUS: 200 OK');
+
             return new NextResponse(Buffer.from(byteArray), {
+              status: 200,
               headers: {
                 'Content-Type': contentType,
-                'Content-Disposition': `inline; filename="${encodeURIComponent(doc.fileName || path.basename(doc.s3Key))}"`,
+                'Content-Disposition': `inline; filename="${encodeURIComponent(sendName)}"`,
                 'Cache-Control': 'public, max-age=3600'
               }
             });
           }
         } catch (s3Err) {
-          console.warn('S3 stream fallback:', s3Err.message);
+          storageError = s3Err.message;
+          console.warn('STORAGE ERROR (S3 Stream):', s3Err.message);
         }
       }
     }
 
-    // 3. If direct key provided without DB record
+    // 4. Fallback search by key/id on disk
     if (key || id) {
       const searchKey = key || id;
       const keyBase = path.basename(searchKey);
       const localPath = path.join(uploadsDir, keyBase);
       if (fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
         const fileBuffer = fs.readFileSync(localPath);
+        finalStatus = 200;
         return new NextResponse(fileBuffer, {
+          status: 200,
           headers: {
             'Content-Type': getMimeType(keyBase),
             'Content-Disposition': `inline; filename="${encodeURIComponent(keyBase)}"`,
@@ -157,50 +210,31 @@ export async function GET(req) {
           }
         });
       }
-
-      // Check if any file in uploadsDir matches searchKey
-      if (fs.existsSync(uploadsDir)) {
-        const diskFiles = fs.readdirSync(uploadsDir).filter(f => f !== '.gitkeep');
-        const match = diskFiles.find(f => f.includes(keyBase) || keyBase.includes(f));
-        if (match) {
-          const fileBuffer = fs.readFileSync(path.join(uploadsDir, match));
-          return new NextResponse(fileBuffer, {
-            headers: {
-              'Content-Type': getMimeType(match),
-              'Content-Disposition': `inline; filename="${encodeURIComponent(match)}"`,
-              'Cache-Control': 'public, max-age=3600'
-            }
-          });
-        }
-      }
     }
 
-    // 4. Default to serving the newest uploaded file on disk if any file exists
-    if (fs.existsSync(uploadsDir)) {
-      const diskFiles = fs.readdirSync(uploadsDir).filter(f => f !== '.gitkeep');
-      if (diskFiles.length > 0) {
-        const newestFile = diskFiles.sort((a, b) => {
-          const statA = fs.statSync(path.join(uploadsDir, a));
-          const statB = fs.statSync(path.join(uploadsDir, b));
-          return statB.mtimeMs - statA.mtimeMs;
-        })[0];
+    console.log('STORAGE ERROR:', storageError || 'File binary missing from all storage providers');
+    console.log('SIGNED URL:', signedUrl || 'NONE');
+    console.log('FINAL STATUS: 404 NOT FOUND');
+    console.log('======================================');
 
-        const fileBuffer = fs.readFileSync(path.join(uploadsDir, newestFile));
-        return new NextResponse(fileBuffer, {
-          headers: {
-            'Content-Type': getMimeType(newestFile),
-            'Content-Disposition': `inline; filename="${encodeURIComponent(doc?.fileName || newestFile)}"`,
-            'Cache-Control': 'public, max-age=3600'
-          }
-        });
-      }
-    }
-
-    return NextResponse.json({ message: 'Document file not found' }, { status: 404 });
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'Document file not found',
+        code: 'DOCUMENT_STORAGE_MISSING',
+        documentId: id || 'N/A'
+      },
+      { status: 404 }
+    );
   } catch (error) {
-    console.error('Error serving document:', error);
-    return new NextResponse('Error downloading file', { status: 500 });
+    console.error('Error serving document download:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'Internal error downloading file',
+        code: 'DOCUMENT_DOWNLOAD_ERROR'
+      },
+      { status: 500 }
+    );
   }
 }
-
-

@@ -164,8 +164,17 @@ export async function POST(req) {
     const cat = category || documentType || 'General';
     const name = documentName || fileName || `${docType}_${fy}.pdf`;
 
-    const computedSavedFileName = savedFileName || (fileUrl?.startsWith('/uploads/') ? fileUrl.replace('/uploads/', '') : (s3Key ? s3Key.split('/').pop() : ''));
-    const computedLocalFilePath = localFilePath || (fileUrl?.startsWith('/uploads/') ? fileUrl : (computedSavedFileName ? `/uploads/${computedSavedFileName}` : ''));
+    let computedBase64 = body.fileBase64 || body.fileData || '';
+    if (!computedBase64 && computedSavedFileName) {
+      try {
+        const fs = (await import('fs')).default;
+        const path = (await import('path')).default;
+        const diskPath = path.join(process.cwd(), 'public', 'uploads', computedSavedFileName);
+        if (fs.existsSync(diskPath)) {
+          computedBase64 = fs.readFileSync(diskPath).toString('base64');
+        }
+      } catch (_) {}
+    }
 
     const doc = new Document({
       clientId: client._id,
@@ -180,11 +189,13 @@ export async function POST(req) {
       fileName: fileName || name,
       savedFileName: computedSavedFileName,
       localFilePath: computedLocalFilePath,
+      fileBase64: computedBase64,
+      fileData: computedBase64,
       s3Key: s3Key || '',
       bucket: bucket || (s3Key ? 'caapp123' : ''),
       mimeType: mimeType || '',
       fileSize: fileSize || 0,
-      storageType: storageType || (s3Key ? 's3' : 'local'),
+      storageType: computedBase64 ? 'cloud_db' : (storageType || (s3Key ? 's3' : 'local')),
       paymentAmount: paymentAmount !== undefined ? Number(paymentAmount) : 500,
       paymentStatus: paymentStatus || 'PENDING',
       paymentNotes: paymentNotes || '',
