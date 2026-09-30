@@ -53,13 +53,13 @@ export default function Login() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: 'admin@zintech.in',
-          password: 'admin.zintech.in',
+          email: 'superadmin@zintech.in',
+          password: 'superadmin@zintech.in',
           name: 'Zintech Super Admin'
         })
       });
-      setEmail('admin.zintech.in');
-      setPassword('admin.zintech.in');
+      setEmail('superadmin@zintech.in');
+      setPassword('superadmin@zintech.in');
       setBootstrapMsg('Super Admin credentials loaded! Click "Sign In" below.');
     } catch (e) {
       setError('Failed to setup Super Admin.');
@@ -187,7 +187,7 @@ export default function Login() {
               onClick={handleAutofillSuperAdmin}
               className="text-[11px] font-bold text-slate-800 hover:text-emerald-700 underline cursor-pointer"
             >
-              👑 Autofill Super Admin (admin.zintech.in)
+              👑 Autofill Super Admin (superadmin@zintech.in)
             </button>
           </div>
 

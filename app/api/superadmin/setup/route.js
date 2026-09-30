@@ -7,13 +7,14 @@ export async function POST(req) {
     await dbConnect();
     
     const body = await req.json().catch(() => ({}));
-    const email = (body.email || 'admin@zintech.in').toLowerCase().trim();
+    const email = (body.email || 'superadmin@zintech.in').toLowerCase().trim();
     const name = body.name || 'Zintech Super Admin';
-    const password = body.password || 'admin.zintech.in';
+    const password = body.password || 'superadmin@zintech.in';
 
     let user = await User.findOne({
       $or: [
         { email },
+        { email: 'superadmin@zintech.in' },
         { email: 'admin@zintech.in' },
         { email: 'admin.zintech.in' }
       ]

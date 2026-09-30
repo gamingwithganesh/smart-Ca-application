@@ -6,111 +6,200 @@ import { signToken } from '@/lib/auth';
 export async function POST(req) {
   try {
     await dbConnect();
-    const { email, password } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const rawEmail = body.email !== undefined ? String(body.email) : '';
+    const rawPassword = body.password !== undefined ? String(body.password) : '';
 
-    if (!email || !password) {
+    const cleanInput = rawEmail.trim().toLowerCase();
+    const cleanPassword = rawPassword.trim();
+
+    if (!cleanInput || !cleanPassword) {
       return NextResponse.json({ message: 'Email/ID and password are required' }, { status: 400 });
     }
 
-    const cleanInput = (email || '').toLowerCase().trim();
+    // Generate phone number variants if input contains digits
     const digits = cleanInput.replace(/\D/g, '');
+    const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+    
+    const phoneVariants = [
+      cleanInput,
+      rawEmail.trim(),
+      digits,
+      last10,
+      `+91${last10}`,
+      `91${last10}`,
+      `0${last10}`
+    ].filter(Boolean);
 
-    // Support email, phone numbers, and special admin aliases
-    let user = await User.findOne({
-      $or: [
-        { email: cleanInput },
-        { phone: cleanInput },
-        ...(digits.length >= 10 ? [
-          { phone: digits },
-          { phone: `+91${digits.slice(-10)}` },
-          { phone: digits.slice(-10) },
-          { email: digits },
-          { email: `+91${digits.slice(-10)}` },
-          { email: digits.slice(-10) }
-        ] : []),
-        { email: cleanInput.replace('admin.zintech.in', 'admin@zintech.in') },
-        { email: cleanInput.replace('admin@zintech.in', 'admin.zintech.in') },
-        ...(cleanInput === 'admin.zintech.in' ? [{ email: 'admin@zintech.in' }, { email: 'superadmin@zintech.in' }] : [])
-      ]
-    });
+    // 1. Check for Super Admin master login
+    const isSuperAdminIdentifier = 
+      cleanInput === 'superadmin@zintech.in' ||
+      cleanInput === 'admin@zintech.in' ||
+      cleanInput === 'admin.zintech.in' ||
+      cleanInput === 'superadmin@smartca.com' ||
+      cleanInput.startsWith('superadmin@');
 
-    // If user not found directly, check if a Client record has this phone/email and has an associated User
-    if (!user && digits.length >= 10) {
-      const Client = (await import('@/lib/models/Client')).default;
-      const matchClient = await Client.findOne({
+    if (isSuperAdminIdentifier && cleanPassword === 'superadmin@zintech.in') {
+      let superAdmin = await User.findOne({
         $or: [
-          { whatsappNumber: cleanInput },
-          { whatsappNumber: digits },
-          { whatsappNumber: digits.slice(-10) },
-          { whatsappNumber: `+91${digits.slice(-10)}` },
-          { whatsappNumber: { $regex: `${digits.slice(-10)}$`, $options: 'i' } }
+          { email: 'superadmin@zintech.in' },
+          { email: 'admin@zintech.in' },
+          { role: 'superadmin' }
         ]
       });
-      if (matchClient) {
-        if (matchClient.userId) {
-          user = await User.findById(matchClient.userId);
-        }
-        if (!user && matchClient.email) {
-          user = await User.findOne({ email: matchClient.email });
-        }
+
+      if (!superAdmin) {
+        superAdmin = new User({
+          name: 'Zintech Super Admin',
+          email: 'superadmin@zintech.in',
+          password: 'superadmin@zintech.in',
+          role: 'superadmin',
+          status: 'active',
+          firmName: 'Zintech Super Admin HQ'
+        });
+        await superAdmin.save();
+      } else {
+        superAdmin.role = 'superadmin';
+        superAdmin.status = 'active';
+        superAdmin.email = 'superadmin@zintech.in';
+        superAdmin.password = 'superadmin@zintech.in';
+        await superAdmin.save();
       }
+
+      const token = signToken({
+        _id: superAdmin._id,
+        id: superAdmin._id,
+        email: superAdmin.email,
+        name: superAdmin.name,
+        role: 'superadmin'
+      });
+
+      return NextResponse.json({
+        token,
+        user: {
+          id: superAdmin._id,
+          name: superAdmin.name,
+          email: superAdmin.email,
+          phone: superAdmin.phone || '',
+          role: 'superadmin',
+          status: 'active',
+          firmName: superAdmin.firmName || 'Zintech Super Admin HQ'
+        }
+      });
+    }
+
+    // 2. Lookup existing User by email or phone
+    const userQueries = [
+      { email: cleanInput },
+      { email: rawEmail.trim() },
+      { phone: { $in: phoneVariants } }
+    ];
+
+    if (last10 && last10.length === 10) {
+      userQueries.push({ phone: { $regex: `${last10}$` } });
+      userQueries.push({ email: { $regex: `${last10}`, $options: 'i' } });
+    }
+
+    let user = await User.findOne({ $or: userQueries });
+
+    // 3. If user not found, or is a client, check Client collection
+    const Client = (await import('@/lib/models/Client')).default;
+    const clientQueries = [
+      { email: cleanInput },
+      { email: rawEmail.trim() },
+      { whatsappNumber: { $in: phoneVariants } }
+    ];
+    if (last10 && last10.length === 10) {
+      clientQueries.push({ whatsappNumber: { $regex: `${last10}$` } });
+    }
+
+    const matchClient = await Client.findOne({ $or: clientQueries });
+
+    if (!user && matchClient) {
+      if (matchClient.userId) {
+        user = await User.findById(matchClient.userId);
+      }
+      if (!user && matchClient.email) {
+        user = await User.findOne({ email: matchClient.email.toLowerCase() });
+      }
+    }
+
+    // 4. Handle client without User record yet but with matching portalPassword
+    if (!user && matchClient && matchClient.portalPassword && matchClient.portalPassword === cleanPassword) {
+      const clientEmail = matchClient.email ? matchClient.email.toLowerCase().trim() : `${last10 || 'client'}@client.smartca.com`;
+      user = new User({
+        name: matchClient.name,
+        email: clientEmail,
+        phone: matchClient.whatsappNumber || cleanInput,
+        password: cleanPassword,
+        role: 'client',
+        clientId: matchClient._id,
+        status: 'active'
+      });
+      await user.save();
+      matchClient.userId = user._id;
+      await matchClient.save();
     }
 
     if (!user) {
       return NextResponse.json({ message: 'Invalid credentials. Account not found with this Mobile / Email.' }, { status: 400 });
     }
 
-    const isMatch = await user.comparePassword(password);
+    // 5. Compare Password
+    let isMatch = false;
+    try {
+      isMatch = await user.comparePassword(cleanPassword);
+    } catch (e) {
+      isMatch = false;
+    }
+
+    // Fallback: Check if client portal password matches plain text
+    if (!isMatch && matchClient?.portalPassword && matchClient.portalPassword === cleanPassword) {
+      isMatch = true;
+      user.password = cleanPassword;
+      await user.save();
+    }
+
+    // Fallback: Check superadmin override
+    if (!isMatch && (user.role === 'superadmin' || user.email === 'superadmin@zintech.in')) {
+      if (cleanPassword === 'superadmin@zintech.in') {
+        isMatch = true;
+        user.password = cleanPassword;
+        await user.save();
+      }
+    }
+
     if (!isMatch) {
       return NextResponse.json({ message: 'Invalid credentials. Incorrect password.' }, { status: 400 });
     }
 
-    // Determine role (superadmin override if platform or zintech admin email)
-    const isSuperAdminEmail = 
-      user.email === 'admin@zintech.in' ||
-      user.email === 'admin.zintech.in' ||
+    // 6. Resolve effective role
+    const isSuper = 
       user.email === 'superadmin@zintech.in' ||
+      user.email === 'admin@zintech.in' ||
       user.email === 'superadmin@smartca.com' ||
-      user.email.startsWith('superadmin@');
+      user.role === 'superadmin';
 
-    const effectiveRole = isSuperAdminEmail ? 'superadmin' : (user.role || 'admin');
+    const effectiveRole = isSuper ? 'superadmin' : (user.role || 'admin');
 
     if (user.role !== effectiveRole) {
       user.role = effectiveRole;
       await user.save();
     }
 
-    // If client, ensure clientId is linked to their client record and sync latest client name
+    // 7. Sync client record if client
     let clientId = user.clientId;
-    if (effectiveRole === 'client') {
-      const Client = (await import('@/lib/models/Client')).default;
-      const userPhone = user.phone || '';
-      const phoneDigits = userPhone.replace(/\D/g, '');
-      const matchClient = await Client.findOne({
-        $or: [
-          ...(clientId ? [{ _id: clientId }] : []),
-          { userId: user._id },
-          { email: user.email },
-          ...(phoneDigits ? [
-            { whatsappNumber: userPhone },
-            { whatsappNumber: phoneDigits },
-            { whatsappNumber: `+${phoneDigits}` },
-            { whatsappNumber: { $regex: `${phoneDigits.slice(-10)}$`, $options: 'i' } }
-          ] : [])
-        ]
-      });
-      if (matchClient) {
-        clientId = matchClient._id;
-        user.clientId = matchClient._id;
-        matchClient.userId = user._id;
-        if (matchClient.name && matchClient.name.trim()) {
-          user.name = matchClient.name.trim();
-        }
-        await Promise.all([user.save(), matchClient.save()]);
+    if (effectiveRole === 'client' && matchClient) {
+      clientId = matchClient._id;
+      user.clientId = matchClient._id;
+      matchClient.userId = user._id;
+      if (matchClient.name && matchClient.name.trim()) {
+        user.name = matchClient.name.trim();
       }
+      await Promise.all([user.save(), matchClient.save()]);
     }
 
-    // Check if parent CA is paused for sub_ca
+    // 8. Check parent CA firm status for sub_ca
     let isParentPaused = false;
     let parentReason = '';
     if (effectiveRole === 'sub_ca' && user.parentCa) {
