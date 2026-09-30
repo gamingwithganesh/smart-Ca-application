@@ -8,12 +8,20 @@ export default function UploadDocument() {
   const router = useRouter();
   const fileInputRef = useRef(null);
   const [clients, setClients] = useState([]);
+  const [clientMode, setClientMode] = useState('select'); // 'select' or 'quick'
+  const [quickClient, setQuickClient] = useState({
+    name: '',
+    mobile: '',
+    email: ''
+  });
   const [formData, setFormData] = useState({
     clientId: '',
     year: '2024-25',
     documentType: 'ITR',
     fileUrl: '',
-    fileName: ''
+    fileName: '',
+    paymentAmount: '500',
+    paymentStatus: 'PENDING'
   });
   const [selectedFile, setSelectedFile] = useState(null);
   const [dragActive, setDragActive] = useState(false);
@@ -52,7 +60,7 @@ export default function UploadDocument() {
     const fileSizeMB = file.size / (1024 * 1024);
 
     try {
-      // 1. For files larger than 4MB, use Direct S3 Pre-signed URL upload to bypass Vercel serverless limit
+      // Direct S3 Pre-signed URL upload for files larger than 4MB
       if (fileSizeMB > 4) {
         const presignedRes = await fetch('/api/documents/presigned-upload-url', {
           method: 'POST',
@@ -62,77 +70,65 @@ export default function UploadDocument() {
           },
           body: JSON.stringify({
             fileName: file.name,
-            contentType: file.type || 'application/octet-stream',
+            contentType: file.type || 'application/pdf',
             clientId: formData.clientId || 'general'
           })
         });
 
-        const presignedData = await presignedRes.json();
-        if (!presignedRes.ok) {
-          throw new Error(presignedData.message || 'Failed to generate S3 upload link');
+        if (presignedRes.ok) {
+          const { uploadUrl, fileUrl, s3Key, bucket } = await presignedRes.json();
+          const s3UploadRes = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': file.type || 'application/octet-stream' },
+            body: file
+          });
+
+          if (!s3UploadRes.ok) throw new Error('Failed to upload directly to S3');
+
+          setSelectedFile(file);
+          setFormData((prev) => ({
+            ...prev,
+            fileUrl,
+            fileName: file.name,
+            s3Key,
+            bucket,
+            mimeType: file.type || 'application/pdf',
+            fileSize: file.size
+          }));
+          setUploadingFile(false);
+          return;
         }
-
-        // Direct Browser -> AWS S3 PUT upload
-        const s3PutRes = await fetch(presignedData.uploadUrl, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': file.type || 'application/octet-stream'
-          },
-          body: file
-        });
-
-        if (!s3PutRes.ok) {
-          throw new Error(`Direct AWS S3 Upload failed (HTTP ${s3PutRes.status}). Check S3 bucket CORS permissions.`);
-        }
-
-        setSelectedFile(file);
-        setFormData((prev) => ({
-          ...prev,
-          fileUrl: presignedData.fileUrl,
-          fileName: file.name,
-          s3Key: presignedData.s3Key,
-          bucket: presignedData.bucket,
-          mimeType: file.type || 'application/octet-stream',
-          fileSize: file.size,
-          storageType: 's3'
-        }));
-        return;
       }
 
-      // 2. For standard size files <= 4MB, upload via server endpoint
-      const uploadData = new FormData();
-      uploadData.append('file', file);
-      if (formData.clientId) {
-        uploadData.append('clientId', formData.clientId);
-      }
+      // Standard upload fallback
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+      uploadFormData.append('clientId', formData.clientId || 'general');
 
       const res = await fetch('/api/documents/upload-file', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`
-        },
-        body: uploadData
+        headers: { Authorization: `Bearer ${token}` },
+        body: uploadFormData
       });
-      const data = await res.json();
 
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to upload system file');
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'File upload failed');
 
       setSelectedFile(file);
       setFormData((prev) => ({
         ...prev,
         fileUrl: data.fileUrl,
         fileName: data.fileName || file.name,
+        savedFileName: data.savedFileName || '',
+        storageType: data.storageType || 'local',
         s3Key: data.s3Key || '',
         bucket: data.bucket || '',
-        mimeType: data.mimeType || '',
-        fileSize: data.fileSize || 0,
-        storageType: data.storageType || 's3'
+        mimeType: data.mimeType || file.type || 'application/pdf',
+        fileSize: data.fileSize || file.size
       }));
     } catch (err) {
-      console.error('Upload document error:', err);
-      setError(err.message);
+      console.error(err);
+      setError(err.message || 'Error uploading file');
     } finally {
       setUploadingFile(false);
     }
@@ -141,11 +137,8 @@ export default function UploadDocument() {
   const handleDrag = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
+    if (e.type === 'dragenter' || e.type === 'dragover') setDragActive(true);
+    else if (e.type === 'dragleave') setDragActive(false);
   };
 
   const handleDrop = (e) => {
@@ -171,7 +164,12 @@ export default function UploadDocument() {
     let finalFileName = formData.fileName?.trim();
 
     if (!finalFileUrl) {
-      setError('Please choose a document file from your computer system to upload!');
+      setError('Please choose a document file to upload!');
+      return;
+    }
+
+    if (clientMode === 'quick' && !quickClient.mobile.trim() && !quickClient.email.trim()) {
+      setError('Please enter either a Client Mobile Number or Email Address!');
       return;
     }
 
@@ -179,8 +177,16 @@ export default function UploadDocument() {
 
     const payload = {
       ...formData,
+      paymentAmount: formData.paymentAmount === '' ? 0 : Number(formData.paymentAmount),
+      clientId: clientMode === 'select' ? formData.clientId : undefined,
+      clientMobile: clientMode === 'quick' ? quickClient.mobile.trim() : undefined,
+      clientEmail: clientMode === 'quick' ? quickClient.email.trim() : undefined,
+      clientName: clientMode === 'quick' ? quickClient.name.trim() : undefined,
+      documentName: formData.documentName?.trim() || `${formData.documentType} Return - FY ${formData.year}`,
       fileUrl: finalFileUrl,
-      fileName: finalFileName || `${formData.documentType}_${formData.year}.pdf`
+      fileName: finalFileName || `${formData.documentType}_${formData.year}.pdf`,
+      savedFileName: formData.savedFileName || (finalFileUrl.startsWith('/uploads/') ? finalFileUrl.replace('/uploads/', '') : ''),
+      localFilePath: finalFileUrl
     };
 
     const token = localStorage.getItem('token');
@@ -207,160 +213,266 @@ export default function UploadDocument() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto my-6 liquid-glass p-8 lg:p-10 rounded-3xl shadow-xl">
+    <div className="max-w-xl mx-auto my-4 sm:my-8 liquid-glass p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm animate-in fade-in duration-300">
       <div className="mb-6">
-        <div className="inline-flex items-center gap-2 bg-emerald-600/10 text-emerald-800 border border-emerald-500/20 px-3 py-1 rounded-full text-xs font-bold mb-2 shadow-xs">
+        <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-0.5 rounded-full text-xs font-bold mb-1.5">
           <span>📤 Document Uploader</span>
         </div>
-        <h2 className="text-2xl font-black text-slate-900 tracking-tight">Upload Client Document</h2>
-        <p className="text-xs text-slate-500 font-medium">Select a file from your computer system or click Save (URL is automatically generated!)</p>
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Upload Client Document</h2>
+        <p className="text-xs text-slate-500 font-medium">Upload by selecting existing client or directly entering client mobile / email</p>
       </div>
 
       {error && (
-        <div className="bg-rose-50 border border-rose-200 text-rose-700 p-3 rounded-2xl text-xs mb-4 flex items-center gap-2 font-semibold">
+        <div className="bg-slate-100 border border-slate-300 text-slate-800 p-3 rounded-xl text-xs mb-4 flex items-center gap-2 font-semibold">
           <span>⚠️</span>
           <span>{error}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Select Client *</label>
-          <select
-            required
-            className="w-full px-4 py-3 bg-white/80 border border-slate-300/80 rounded-2xl text-xs font-medium text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 transition shadow-xs"
-            value={formData.clientId}
-            onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
-          >
-            {clients.length > 0 ? (
-              clients.map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.name} ({c.whatsappNumber})
-                </option>
-              ))
-            ) : (
-              <option value="">No clients found. Add a client first.</option>
-            )}
-          </select>
+      <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+        {/* Client Selection Mode Selector */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Target Client *</label>
+            <div className="flex bg-slate-100 p-0.5 rounded-lg text-[11px] font-bold">
+              <button
+                type="button"
+                onClick={() => setClientMode('select')}
+                className={`px-2.5 py-1 rounded-md transition ${clientMode === 'select' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'}`}
+              >
+                Existing Client
+              </button>
+              <button
+                type="button"
+                onClick={() => setClientMode('quick')}
+                className={`px-2.5 py-1 rounded-md transition ${clientMode === 'quick' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-900'}`}
+              >
+                ⚡ By Mobile / Email
+              </button>
+            </div>
+          </div>
+
+          {clientMode === 'select' ? (
+            <select
+              required
+              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 outline-none focus:border-slate-900 transition"
+              value={formData.clientId}
+              onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
+            >
+              {clients.length > 0 ? (
+                clients.map((c) => (
+                  <option key={c._id} value={c._id}>
+                    {c.name} ({c.whatsappNumber || c.email || 'Client'})
+                  </option>
+                ))
+              ) : (
+                <option value="">No clients found. Switch to 'By Mobile / Email' above.</option>
+              )}
+            </select>
+          ) : (
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Client Mobile / WhatsApp *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 9876543210"
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 outline-none focus:border-slate-900 transition"
+                    value={quickClient.mobile}
+                    onChange={(e) => setQuickClient({ ...quickClient, mobile: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Client Email (Optional)</label>
+                  <input
+                    type="email"
+                    placeholder="e.g. client@gmail.com"
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 outline-none focus:border-slate-900 transition"
+                    value={quickClient.email}
+                    onChange={(e) => setQuickClient({ ...quickClient, email: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Client Name / Business (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Rahul Sharma / ABC Traders"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 outline-none focus:border-slate-900 transition"
+                  value={quickClient.name}
+                  onChange={(e) => setQuickClient({ ...quickClient, name: e.target.value })}
+                />
+              </div>
+              <p className="text-[10px] text-slate-500 font-medium">
+                💡 When this client registers on their own with this Mobile or Email, they will automatically see this document in their Client Portal!
+              </p>
+            </div>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Document Type *</label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Document Type *</label>
             <select
-              className="w-full px-4 py-3 bg-white/80 border border-slate-300/80 rounded-2xl text-xs font-medium text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 transition shadow-xs"
+              required
+              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 outline-none focus:border-slate-900 transition"
               value={formData.documentType}
-              onChange={(e) => setFormData({ ...formData, documentType: e.target.value })}
+              onChange={(e) => {
+                const newType = e.target.value;
+                setFormData((prev) => ({
+                  ...prev,
+                  documentType: newType,
+                  documentName: prev.documentName ? prev.documentName : `${newType} Return - FY ${prev.year}`
+                }));
+              }}
             >
-              <option value="ITR">ITR (Income Tax Return)</option>
-              <option value="GSTR1">GSTR-1</option>
-              <option value="GSTR3B">GSTR-3B</option>
-              <option value="BALANCE_SHEET">Balance Sheet & PnL</option>
-              <option value="TAX_AUDIT">Tax Audit Report</option>
-              <option value="FORM_16">Form 16 / Salary Certificate</option>
-              <option value="TDS_RETURN">TDS Return</option>
-              <option value="COMPUTATION">Tax Computation</option>
+              <option value="ITR">Income Tax Return (ITR)</option>
+              <option value="GST">GST Return / 3B</option>
+              <option value="TDS">TDS Certificate / Form 16</option>
+              <option value="BALANCE_SHEET">Balance Sheet / P&L</option>
+              <option value="AUDIT_REPORT">Tax Audit Report</option>
+              <option value="OTHER">Other Financial Doc</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Assessment Year *</label>
-            <select
-              className="w-full px-4 py-3 bg-white/80 border border-slate-300/80 rounded-2xl text-xs font-medium text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 transition shadow-xs"
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Financial Year (FY) *</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. 2024-25"
+              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 outline-none focus:border-slate-900 transition"
               value={formData.year}
-              onChange={(e) => setFormData({ ...formData, year: e.target.value })}
-            >
-              <option value="2025-26">2025-26</option>
-              <option value="2024-25">2024-25</option>
-              <option value="2023-24">2023-24</option>
-              <option value="2022-23">2022-23</option>
-            </select>
+              onChange={(e) => {
+                const newYear = e.target.value;
+                setFormData((prev) => ({
+                  ...prev,
+                  year: newYear,
+                  documentName: prev.documentName ? prev.documentName : `${prev.documentType} Return - FY ${newYear}`
+                }));
+              }}
+            />
           </div>
         </div>
 
-        {/* Drag & Drop Liquid Glass File Dropzone */}
+        {/* Document Display Name / Title */}
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">Choose File from Computer System (Optional)</label>
-          
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+            Document Title / Display Name (Shown to Client) *
+          </label>
           <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
-            className="hidden"
-            onChange={handleFileChange}
+            type="text"
+            required
+            placeholder="e.g. Income Tax Return Acknowledgement FY 2024-25"
+            className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 outline-none focus:border-slate-900 transition"
+            value={formData.documentName || ''}
+            onChange={(e) => setFormData({ ...formData, documentName: e.target.value })}
           />
+          <p className="text-[10px] text-slate-500 font-medium mt-1">
+            This clean, official title will be displayed in the client's document vault and chatbot.
+          </p>
+        </div>
 
+        {/* Payment & Watermark Fee Settings */}
+        <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-800">💳 Document Fee & Payment Lock</span>
+            <span className="text-[10px] text-slate-500">Unpaid previews show CA firm watermark</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Fee Amount (₹)</label>
+              <div className="relative flex items-center">
+                <span className="absolute left-3 text-slate-400 font-bold text-xs">₹</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="e.g. 500"
+                  className="w-full pl-7 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 outline-none focus:border-slate-900"
+                  value={formData.paymentAmount !== undefined ? formData.paymentAmount : '500'}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, '');
+                    const cleanVal = digits === '' ? '' : String(parseInt(digits, 10));
+                    setFormData((prev) => ({ ...prev, paymentAmount: cleanVal }));
+                  }}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">Initial Status</label>
+              <select
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 outline-none focus:border-slate-900"
+                value={formData.paymentStatus || 'PENDING'}
+                onChange={(e) => setFormData({ ...formData, paymentStatus: e.target.value })}
+              >
+                <option value="PENDING">🔒 Pending (Watermarked)</option>
+                <option value="COMPLETED">✅ Paid (Clean / Unlocked)</option>
+                <option value="IN_PROCESS">⏳ In Process</option>
+                <option value="FREE">🆓 Free / No Charge</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Drag and Drop Zone */}
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+            Choose File from Device *
+          </label>
           <div
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-3xl p-8 text-center cursor-pointer transition-all duration-300 flex flex-col items-center justify-center gap-2 ${
-              dragActive ? 'border-emerald-500 bg-emerald-50/80 shadow-md' : 'border-slate-300/80 hover:border-emerald-500 bg-white/60 hover:bg-white/90 shadow-xs'
+            className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition ${
+              dragActive
+                ? 'border-slate-900 bg-slate-100'
+                : selectedFile
+                ? 'border-emerald-600 bg-emerald-50/40'
+                : 'border-slate-300 bg-slate-50/80 hover:bg-slate-100/80'
             }`}
           >
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleFileChange}
+              className="hidden"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+            />
             {uploadingFile ? (
-              <div className="flex items-center gap-2 text-emerald-700 text-sm font-bold animate-pulse">
-                <span>⚡ Uploading file from your computer...</span>
+              <div className="space-y-1">
+                <div className="animate-spin text-xl">⏳</div>
+                <div className="font-bold text-slate-900">Uploading File...</div>
               </div>
-            ) : selectedFile || formData.fileUrl ? (
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-3xl">📄</span>
-                <span className="text-sm font-bold text-slate-900">{formData.fileName || selectedFile?.name || 'File Registered'}</span>
-                <span className="text-xs text-emerald-700 bg-emerald-100/90 px-3 py-1 rounded-xl font-mono border border-emerald-300">{formData.fileUrl}</span>
-                <span className="text-xs text-slate-400 mt-1 hover:underline">Click or drag a new file to replace</span>
+            ) : selectedFile ? (
+              <div className="space-y-1">
+                <div className="text-xl">✅</div>
+                <div className="font-bold text-slate-900 text-xs">{selectedFile.name}</div>
+                <div className="text-[10px] text-slate-500 font-semibold">
+                  {(selectedFile.size / 1024).toFixed(1)} KB • Click to replace
+                </div>
               </div>
             ) : (
-              <>
-                <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center text-2xl font-bold mb-1 shadow-xs">
-                  📁
-                </div>
-                <p className="text-sm font-bold text-slate-800">
-                  Drag & Drop file here or <span className="text-emerald-700 underline">Choose from System</span>
-                </p>
-                <p className="text-xs text-slate-400 font-medium">Or leave blank to auto-generate document file record!</p>
-              </>
+              <div className="space-y-1">
+                <div className="text-xl">📁</div>
+                <div className="font-bold text-slate-800 text-xs">Drag & drop or Click to browse</div>
+                <div className="text-[10px] text-slate-400">PDF, Excel, Word up to 25MB</div>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Optional Custom File URL */}
-        <details className="text-xs text-slate-600 bg-white/40 p-3 rounded-2xl border border-slate-200/60">
-          <summary className="font-bold text-slate-700 cursor-pointer select-none">🔗 Custom S3 / External File URL (Optional)</summary>
-          <div className="mt-3 space-y-3">
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Custom S3 / Web Link</label>
-              <input
-                type="text"
-                placeholder="Auto-generated if left blank (e.g. /uploads/itr_2024-25.pdf)"
-                className="w-full px-4 py-2.5 bg-white border border-slate-300/80 rounded-xl text-xs text-slate-800 font-mono outline-none focus:border-emerald-600 transition"
-                value={formData.fileUrl}
-                onChange={(e) => setFormData({ ...formData, fileUrl: e.target.value })}
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Custom Display File Name</label>
-              <input
-                type="text"
-                placeholder="ITR_Acknowledgement_2024_25.pdf"
-                className="w-full px-4 py-2.5 bg-white border border-slate-300/80 rounded-xl text-xs font-medium text-slate-900 outline-none focus:border-emerald-600 transition"
-                value={formData.fileName}
-                onChange={(e) => setFormData({ ...formData, fileName: e.target.value })}
-              />
-            </div>
-          </div>
-        </details>
-
-        <div className="pt-2 flex gap-3">
+        <div className="pt-3 flex flex-col sm:flex-row gap-2.5">
           <button
             type="submit"
-            disabled={loading || !formData.clientId}
-            className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold py-3.5 rounded-2xl text-xs uppercase tracking-wider transition shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+            disabled={loading || uploadingFile || !formData.fileUrl}
+            className="flex-1 btn-primary py-2.5 rounded-xl text-xs uppercase tracking-wider disabled:opacity-50 cursor-pointer"
           >
-            {loading ? 'Registering Document...' : 'Save & Register Document'}
+            {loading ? 'Saving to Vault...' : 'Save & Publish to Client Vault'}
           </button>
-          <Link href="/dashboard" className="px-6 py-3.5 border border-slate-300/80 rounded-2xl text-xs text-slate-700 hover:bg-white font-bold transition">
+          <Link href="/dashboard" className="btn-outline px-5 py-2.5 rounded-xl text-xs text-center font-bold">
             Cancel
           </Link>
         </div>

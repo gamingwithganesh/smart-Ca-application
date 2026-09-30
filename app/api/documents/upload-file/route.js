@@ -31,7 +31,19 @@ export async function POST(req) {
     let storageType = 'local';
     let s3Key = '';
 
-    // Attempt S3 upload using AWS SDK v3
+    // Always save a local copy in public/uploads for instant fast serving
+    try {
+      const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const filePath = path.join(uploadsDir, savedFileName);
+      fs.writeFileSync(filePath, buffer);
+    } catch (fsErr) {
+      console.warn('Local file write error:', fsErr.message);
+    }
+
+    // Attempt S3 upload if configured
     try {
       s3Key = `clients/${clientId}/documents/${savedFileName}`;
       await uploadToS3({
@@ -39,38 +51,12 @@ export async function POST(req) {
         key: s3Key,
         contentType
       });
-
       storageType = 's3';
-      // Route access through secure download route with pre-signed URL generator
       fileUrl = `/api/documents/download?key=${encodeURIComponent(s3Key)}`;
-      console.log('✅ Document uploaded successfully to AWS S3 Bucket:', s3Key);
     } catch (s3Err) {
-      console.warn('⚠️ AWS S3 Bucket upload failed:', s3Err.message);
-
-      const isVercel = Boolean(process.env.VERCEL || process.env.NEXT_PUBLIC_VERCEL_ENV);
-      
-      // Try local fallback ONLY on non-Vercel local development environments
-      let localFallbackSuccess = false;
-      if (!isVercel) {
-        try {
-          const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-          if (!fs.existsSync(uploadsDir)) {
-            fs.mkdirSync(uploadsDir, { recursive: true });
-          }
-          const filePath = path.join(uploadsDir, savedFileName);
-          fs.writeFileSync(filePath, buffer);
-          localFallbackSuccess = true;
-          console.log('📁 Local storage fallback succeeded (Development Mode)');
-        } catch (fsErr) {
-          console.error('❌ Local filesystem fallback failed:', fsErr.message);
-        }
-      }
-
-      if (!localFallbackSuccess) {
-        return NextResponse.json({
-          message: `AWS S3 Upload Failed (${s3Err.message}). Please check AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_BUCKET_NAME, and AWS_S3_REGION in your Vercel Project Settings.`
-        }, { status: 500 });
-      }
+      // Keep local fileUrl
+      fileUrl = `/uploads/${savedFileName}`;
+      storageType = 'local';
     }
 
     return NextResponse.json({

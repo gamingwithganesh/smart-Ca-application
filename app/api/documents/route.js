@@ -2,24 +2,29 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
 import Document from '@/lib/models/Document';
 import Client from '@/lib/models/Client';
-import { verifyToken } from '@/lib/auth';
+import User from '@/lib/models/User';
+import mongoose from 'mongoose';
+import { getAuthenticatedUser } from '@/lib/auth';
 
 export async function GET(req) {
   try {
-    await dbConnect();
-    const payload = verifyToken(req);
-    if (!payload) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    const auth = await getAuthenticatedUser(req);
+    if (auth.error) return NextResponse.json({ message: auth.error }, { status: auth.status });
 
+    await dbConnect();
     const { searchParams } = new URL(req.url);
     const clientId = searchParams.get('clientId');
 
-    const query = { uploadedBy: payload.userId };
+    const caId = auth.isSuperAdmin ? null : auth.effectiveCaId;
+    const query = caId ? { uploadedBy: caId } : {};
 
     if (clientId) {
-      // Verify client belongs to logged in CA
-      const client = await Client.findOne({ _id: clientId, createdBy: payload.userId });
-      if (!client) {
-        return NextResponse.json({ message: 'Client not found or unauthorized' }, { status: 404 });
+      if (caId) {
+        // Verify client belongs to logged in CA firm
+        const client = await Client.findOne({ _id: clientId, createdBy: caId });
+        if (!client) {
+          return NextResponse.json({ message: 'Client not found or unauthorized' }, { status: 404 });
+        }
       }
       query.clientId = clientId;
     }
@@ -40,19 +45,24 @@ export async function GET(req) {
 
     return NextResponse.json(formattedDocs);
   } catch (error) {
+    console.error('Fetch documents error:', error);
     return NextResponse.json({ message: 'Error fetching documents' }, { status: 500 });
   }
 }
 
 export async function POST(req) {
   try {
-    await dbConnect();
-    const payload = verifyToken(req);
-    if (!payload) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    const auth = await getAuthenticatedUser(req);
+    if (auth.error) return NextResponse.json({ message: auth.error }, { status: auth.status });
 
+    await dbConnect();
     const body = await req.json();
     const {
       clientId,
+      clientMobile,
+      clientEmail,
+      clientName,
+      whatsappNumber,
       year,
       financialYear,
       documentType,
@@ -62,19 +72,89 @@ export async function POST(req) {
       originalFilename,
       fileUrl,
       fileName,
+      savedFileName,
+      localFilePath,
       s3Key,
       bucket,
       mimeType,
       fileSize,
-      storageType
+      storageType,
+      paymentAmount,
+      paymentStatus,
+      paymentNotes
     } = body;
 
-    if (!clientId || (!year && !financialYear) || (!documentType && !category) || (!fileUrl && !s3Key)) {
-      return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
+    const caId = auth.effectiveCaId;
+    if (!caId) {
+      return NextResponse.json({ message: 'Invalid CA firm context' }, { status: 400 });
     }
 
-    // Verify client belongs to logged in CA
-    const client = await Client.findOne({ _id: clientId, createdBy: payload.userId });
+    if ((!clientId && !clientMobile && !whatsappNumber && !clientEmail) || (!year && !financialYear) || (!documentType && !category) || (!fileUrl && !s3Key)) {
+      return NextResponse.json({ message: 'Missing required fields (Client, Financial Year, Document Type, and File)' }, { status: 400 });
+    }
+
+    // Resolve or find client
+    let client = null;
+    if (clientId && clientId !== 'NEW' && mongoose.Types.ObjectId.isValid(clientId)) {
+      client = await Client.findOne({ _id: clientId, createdBy: caId });
+    }
+
+    // If client not found by ID, look up or auto-create by mobile/email
+    if (!client && (clientMobile || whatsappNumber || clientEmail)) {
+      const phone = (clientMobile || whatsappNumber || '').trim();
+      const email = (clientEmail || '').trim().toLowerCase();
+      const digits = phone.replace(/\D/g, '');
+      const last10 = digits.slice(-10);
+
+      const searchConditions = [
+        ...(email ? [{ email }] : []),
+        ...(last10 ? [
+          { whatsappNumber: phone },
+          { whatsappNumber: digits },
+          { whatsappNumber: `+${digits}` },
+          { whatsappNumber: { $regex: `${last10}$`, $options: 'i' } }
+        ] : [])
+      ];
+
+      if (searchConditions.length > 0) {
+        client = await Client.findOne({ createdBy: caId, $or: searchConditions });
+      }
+
+      if (!client) {
+        // Auto-create client profile under this CA firm
+        client = new Client({
+          name: (clientName || (last10 ? `Client (${last10})` : email) || 'New Client').trim(),
+          whatsappNumber: phone || '+910000000000',
+          email: email || '',
+          clientType: 'INDIVIDUAL',
+          createdBy: caId
+        });
+        await client.save();
+      }
+
+      // Check if a self-registered User exists and link userId
+      const userConditions = [
+        ...(email ? [{ email }] : []),
+        ...(last10 ? [
+          { phone },
+          { phone: digits },
+          { phone: `+${digits}` },
+          { phone: { $regex: `${last10}$`, $options: 'i' } }
+        ] : [])
+      ];
+      if (userConditions.length > 0 && !client.userId) {
+        const registeredUser = await User.findOne({ role: 'client', $or: userConditions });
+        if (registeredUser) {
+          client.userId = registeredUser._id;
+          if (!registeredUser.clientId) {
+            registeredUser.clientId = client._id;
+            await registeredUser.save();
+          }
+          await client.save();
+        }
+      }
+    }
+
     if (!client) {
       return NextResponse.json({ message: 'Invalid client or unauthorized' }, { status: 403 });
     }
@@ -84,8 +164,11 @@ export async function POST(req) {
     const cat = category || documentType || 'General';
     const name = documentName || fileName || `${docType}_${fy}.pdf`;
 
+    const computedSavedFileName = savedFileName || (fileUrl?.startsWith('/uploads/') ? fileUrl.replace('/uploads/', '') : (s3Key ? s3Key.split('/').pop() : ''));
+    const computedLocalFilePath = localFilePath || (fileUrl?.startsWith('/uploads/') ? fileUrl : (computedSavedFileName ? `/uploads/${computedSavedFileName}` : ''));
+
     const doc = new Document({
-      clientId,
+      clientId: client._id,
       year: fy,
       financialYear: fy,
       documentType: docType,
@@ -95,19 +178,24 @@ export async function POST(req) {
       originalFilename: originalFilename || fileName || '',
       fileUrl: fileUrl || '',
       fileName: fileName || name,
+      savedFileName: computedSavedFileName,
+      localFilePath: computedLocalFilePath,
       s3Key: s3Key || '',
       bucket: bucket || (s3Key ? 'caapp123' : ''),
       mimeType: mimeType || '',
       fileSize: fileSize || 0,
       storageType: storageType || (s3Key ? 's3' : 'local'),
-      uploadedBy: payload.userId,
+      paymentAmount: paymentAmount !== undefined ? Number(paymentAmount) : 500,
+      paymentStatus: paymentStatus || 'PENDING',
+      paymentNotes: paymentNotes || '',
+      uploadedBy: caId,
       createdAt: new Date(),
       updatedAt: new Date()
     });
 
     await doc.save();
 
-    // Set fileUrl to point to secure pre-signed download route
+    // Set fileUrl to point to secure download route
     doc.fileUrl = `/api/documents/download?id=${doc._id}`;
     await doc.save();
 

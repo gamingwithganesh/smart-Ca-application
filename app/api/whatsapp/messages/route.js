@@ -2,14 +2,14 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db';
 import Client from '@/lib/models/Client';
 import Message from '@/lib/models/Message';
-import { verifyToken } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth';
 
 export async function GET(req) {
   try {
-    await dbConnect();
-    const payload = verifyToken(req);
-    if (!payload) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    const auth = await getAuthenticatedUser(req);
+    if (auth.error) return NextResponse.json({ message: auth.error }, { status: auth.status });
 
+    await dbConnect();
     const { searchParams } = new URL(req.url);
     const clientId = searchParams.get('clientId');
 
@@ -17,10 +17,13 @@ export async function GET(req) {
       return NextResponse.json({ message: 'Client ID is required' }, { status: 400 });
     }
 
-    // Verify client belongs to logged in CA
-    const client = await Client.findOne({ _id: clientId, createdBy: payload.userId });
-    if (!client) {
-      return NextResponse.json({ message: 'Client not found or unauthorized' }, { status: 404 });
+    // Verify client belongs to logged in CA (or Super Admin)
+    const caId = auth.isSuperAdmin ? null : auth.effectiveCaId;
+    if (caId) {
+      const client = await Client.findOne({ _id: clientId, createdBy: caId });
+      if (!client) {
+        return NextResponse.json({ message: 'Client not found or unauthorized' }, { status: 404 });
+      }
     }
 
     const messages = await Message.find({ clientId })

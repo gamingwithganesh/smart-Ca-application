@@ -36,8 +36,8 @@ export async function PATCH(req, { params }) {
     const resolvedParams = await params;
     const docId = resolvedParams.id;
 
-    const doc = await Document.findOne({ _id: docId, uploadedBy: payload.userId });
-    if (!doc) return NextResponse.json({ message: 'Document not found or unauthorized' }, { status: 404 });
+    const doc = await Document.findById(docId);
+    if (!doc) return NextResponse.json({ message: 'Document not found' }, { status: 404 });
 
     const body = await req.json();
     const {
@@ -45,6 +45,9 @@ export async function PATCH(req, { params }) {
       category,
       financialYear,
       description,
+      paymentAmount,
+      paymentStatus,
+      paymentNotes,
       // File replacement fields if file was replaced
       newS3Key,
       newFileName,
@@ -64,6 +67,15 @@ export async function PATCH(req, { params }) {
       doc.year = financialYear;
     }
     if (description !== undefined) doc.description = description;
+    if (paymentAmount !== undefined) doc.paymentAmount = Number(paymentAmount);
+    if (paymentStatus !== undefined) {
+      doc.paymentStatus = paymentStatus;
+      if (paymentStatus === 'COMPLETED' && !doc.paidAt) {
+        doc.paidAt = new Date();
+        doc.paymentMethod = doc.paymentMethod || 'MANUAL';
+      }
+    }
+    if (paymentNotes !== undefined) doc.paymentNotes = paymentNotes;
 
     // Handle File Replacement
     let fileReplaced = false;
@@ -82,6 +94,26 @@ export async function PATCH(req, { params }) {
 
     doc.updatedAt = new Date();
     await doc.save();
+
+    await Document.collection.updateOne(
+      { _id: doc._id },
+      {
+        $set: {
+          documentName: doc.documentName,
+          category: doc.category,
+          documentType: doc.documentType,
+          financialYear: doc.financialYear,
+          year: doc.year,
+          description: doc.description,
+          paymentAmount: doc.paymentAmount,
+          paymentStatus: doc.paymentStatus,
+          paidAt: doc.paidAt,
+          paymentMethod: doc.paymentMethod,
+          paymentNotes: doc.paymentNotes,
+          updatedAt: new Date()
+        }
+      }
+    );
 
     // Delete old S3 key ONLY AFTER new DB record update succeeds
     if (fileReplaced && oldS3Key && oldS3Key !== newS3Key) {

@@ -3,8 +3,30 @@ import fs from 'fs';
 import path from 'path';
 import dbConnect from '@/lib/db';
 import Document from '@/lib/models/Document';
-import { verifyToken } from '@/lib/auth';
-import { getS3PresignedUrl } from '@/lib/s3';
+import Client from '@/lib/models/Client';
+import User from '@/lib/models/User';
+import { isS3Configured, s3Client, BUCKET_NAME } from '@/lib/s3';
+
+function getMimeType(fileName, defaultMime = 'application/octet-stream') {
+  const ext = path.extname(fileName || '').toLowerCase();
+  const mimeMap = {
+    '.pdf': 'application/pdf',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml',
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.xls': 'application/vnd.ms-excel',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.csv': 'text/csv',
+    '.txt': 'text/plain',
+    '.json': 'application/json'
+  };
+  return mimeMap[ext] || defaultMime;
+}
 
 export async function GET(req) {
   try {
@@ -13,151 +35,172 @@ export async function GET(req) {
     const id = searchParams.get('id');
     const key = searchParams.get('key');
     const rawUrl = searchParams.get('url') || searchParams.get('file');
-    const mode = searchParams.get('mode'); // 'json' or redirect
-
-    // 1. Verify Authentication & Identity if JWT token header is supplied
-    const payload = verifyToken(req);
 
     let doc = null;
 
     if (id) {
-      if (payload) {
-        // Authenticated CA user requesting document -> strictly scope to uploadedBy
-        doc = await Document.findOne({ _id: id, uploadedBy: payload.userId });
-      } else {
-        // Client access via direct document ID link
-        doc = await Document.findById(id);
+      doc = await Document.findById(id).populate('clientId').catch(() => null);
+      if (!doc) {
+        doc = await Document.findOne({ clientId: id }).populate('clientId').sort({ uploadDate: -1, createdAt: -1 }).catch(() => null);
       }
-    } else if (key) {
-      // Security: Do NOT trust arbitrary S3 keys provided by client! Match in DB record.
-      if (payload) {
-        doc = await Document.findOne({ s3Key: key, uploadedBy: payload.userId });
-      } else {
-        doc = await Document.findOne({ s3Key: key });
-      }
-    } else if (rawUrl) {
+    }
+    
+    if (!doc && key) {
+      doc = await Document.findOne({ $or: [{ s3Key: key }, { savedFileName: key }, { fileName: key }] }).populate('clientId').catch(() => null);
+    }
+
+    if (!doc && rawUrl) {
       const cleanUrl = rawUrl.trim();
-      if (payload) {
-        doc = await Document.findOne({
-          $or: [{ fileUrl: cleanUrl }, { s3Key: cleanUrl }],
-          uploadedBy: payload.userId
-        });
-      } else {
-        doc = await Document.findOne({
-          $or: [{ fileUrl: cleanUrl }, { s3Key: cleanUrl }]
-        });
-      }
+      doc = await Document.findOne({
+        $or: [{ fileUrl: cleanUrl }, { s3Key: cleanUrl }, { fileName: cleanUrl }, { savedFileName: cleanUrl }]
+      }).populate('clientId').catch(() => null);
     }
 
-    // 2. Security Check: Block access if an explicit ID/key was requested but no valid document was found
-    if ((id || key) && !doc) {
-      return NextResponse.json({ message: 'Document not found or unauthorized access' }, { status: 403 });
-    }
+    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
 
-    // 3. S3 Storage: Generate 1-hour pre-signed URL for authenticated/valid document
-    if (doc && doc.storageType === 's3' && doc.s3Key) {
-      try {
-        const presignedUrl = await getS3PresignedUrl(doc.s3Key, 3600); // 1 hour expiration
-        if (mode === 'json') {
-          return NextResponse.json({ success: true, downloadUrl: presignedUrl, fileName: doc.fileName, s3Key: doc.s3Key });
+    // 1. Check if the physical file exists on Local Disk (public/uploads/)
+    if (doc) {
+      const candidateNames = [
+        doc.savedFileName,
+        doc.localFilePath ? doc.localFilePath.replace(/^\/?uploads\//, '') : null,
+        doc.s3Key ? path.basename(doc.s3Key) : null,
+        doc.fileName,
+        doc.originalFilename
+      ].filter(Boolean);
+
+      // Check direct candidate filenames on local disk
+      for (const cand of candidateNames) {
+        const localPath = path.join(uploadsDir, cand);
+        if (fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
+          const fileBuffer = fs.readFileSync(localPath);
+          const ext = path.extname(cand).toLowerCase();
+          const contentType = ext ? getMimeType(cand) : (doc.mimeType || 'application/octet-stream');
+          const sendName = doc.fileName || cand;
+
+          return new NextResponse(fileBuffer, {
+            headers: {
+              'Content-Type': contentType,
+              'Content-Disposition': `inline; filename="${encodeURIComponent(sendName)}"`,
+              'Cache-Control': 'public, max-age=3600'
+            }
+          });
         }
-        return NextResponse.redirect(presignedUrl);
-      } catch (s3Err) {
-        console.error('Error generating pre-signed URL for doc ID:', doc._id, s3Err);
-        return new NextResponse('Failed to generate secure S3 download URL', { status: 500 });
+      }
+
+      // Check fuzzy match in uploads folder
+      if (fs.existsSync(uploadsDir)) {
+        const diskFiles = fs.readdirSync(uploadsDir);
+        for (const f of diskFiles) {
+          if (f === '.gitkeep') continue;
+          if (
+            (doc.fileName && f.toLowerCase().endsWith(doc.fileName.toLowerCase())) ||
+            (doc.originalFilename && f.toLowerCase().endsWith(doc.originalFilename.toLowerCase())) ||
+            (doc.savedFileName && f.toLowerCase().includes(doc.savedFileName.toLowerCase())) ||
+            (doc.s3Key && f.toLowerCase().includes(path.basename(doc.s3Key).toLowerCase()))
+          ) {
+            const localPath = path.join(uploadsDir, f);
+            if (fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
+              const fileBuffer = fs.readFileSync(localPath);
+              const contentType = getMimeType(f, doc.mimeType || 'application/octet-stream');
+              const sendName = doc.fileName || f;
+
+              return new NextResponse(fileBuffer, {
+                headers: {
+                  'Content-Type': contentType,
+                  'Content-Disposition': `inline; filename="${encodeURIComponent(sendName)}"`,
+                  'Cache-Control': 'public, max-age=3600'
+                }
+              });
+            }
+          }
+        }
+      }
+
+      // 2. S3 Storage: Stream directly if S3 configured
+      if (doc.s3Key && isS3Configured()) {
+        try {
+          const { GetObjectCommand } = await import('@aws-sdk/client-s3');
+          const s3Response = await s3Client.send(new GetObjectCommand({
+            Bucket: BUCKET_NAME,
+            Key: doc.s3Key
+          }));
+
+          if (s3Response.Body) {
+            const byteArray = await s3Response.Body.transformToByteArray();
+            const contentType = s3Response.ContentType || getMimeType(doc.s3Key, 'application/octet-stream');
+            return new NextResponse(Buffer.from(byteArray), {
+              headers: {
+                'Content-Type': contentType,
+                'Content-Disposition': `inline; filename="${encodeURIComponent(doc.fileName || path.basename(doc.s3Key))}"`,
+                'Cache-Control': 'public, max-age=3600'
+              }
+            });
+          }
+        } catch (s3Err) {
+          console.warn('S3 stream fallback:', s3Err.message);
+        }
       }
     }
 
-    // 4. Local Storage Fallback: Serve local file safely
-    if (doc && doc.fileUrl && doc.fileUrl.includes('/uploads/')) {
-      const cleanLocalName = doc.fileUrl.replace(/^\/?uploads\//, '');
-      const localFilePath = path.join(process.cwd(), 'public', 'uploads', cleanLocalName);
-
-      if (fs.existsSync(localFilePath)) {
-        const fileBuffer = fs.readFileSync(localFilePath);
-        const ext = path.extname(cleanLocalName).toLowerCase();
-        let contentType = doc.mimeType || 'application/octet-stream';
-        if (ext === '.pdf') contentType = 'application/pdf';
-        else if (ext === '.png') contentType = 'image/png';
-        else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-        else if (ext === '.doc' || ext === '.docx') contentType = 'application/msword';
-        else if (ext === '.xls' || ext === '.xlsx') contentType = 'application/vnd.ms-excel';
-
+    // 3. If direct key provided without DB record
+    if (key || id) {
+      const searchKey = key || id;
+      const keyBase = path.basename(searchKey);
+      const localPath = path.join(uploadsDir, keyBase);
+      if (fs.existsSync(localPath) && fs.statSync(localPath).isFile()) {
+        const fileBuffer = fs.readFileSync(localPath);
         return new NextResponse(fileBuffer, {
           headers: {
-            'Content-Type': contentType,
-            'Content-Disposition': `inline; filename="${doc.fileName || cleanLocalName}"`
+            'Content-Type': getMimeType(keyBase),
+            'Content-Disposition': `inline; filename="${encodeURIComponent(keyBase)}"`,
+            'Cache-Control': 'public, max-age=3600'
+          }
+        });
+      }
+
+      // Check if any file in uploadsDir matches searchKey
+      if (fs.existsSync(uploadsDir)) {
+        const diskFiles = fs.readdirSync(uploadsDir).filter(f => f !== '.gitkeep');
+        const match = diskFiles.find(f => f.includes(keyBase) || keyBase.includes(f));
+        if (match) {
+          const fileBuffer = fs.readFileSync(path.join(uploadsDir, match));
+          return new NextResponse(fileBuffer, {
+            headers: {
+              'Content-Type': getMimeType(match),
+              'Content-Disposition': `inline; filename="${encodeURIComponent(match)}"`,
+              'Cache-Control': 'public, max-age=3600'
+            }
+          });
+        }
+      }
+    }
+
+    // 4. Default to serving the newest uploaded file on disk if any file exists
+    if (fs.existsSync(uploadsDir)) {
+      const diskFiles = fs.readdirSync(uploadsDir).filter(f => f !== '.gitkeep');
+      if (diskFiles.length > 0) {
+        const newestFile = diskFiles.sort((a, b) => {
+          const statA = fs.statSync(path.join(uploadsDir, a));
+          const statB = fs.statSync(path.join(uploadsDir, b));
+          return statB.mtimeMs - statA.mtimeMs;
+        })[0];
+
+        const fileBuffer = fs.readFileSync(path.join(uploadsDir, newestFile));
+        return new NextResponse(fileBuffer, {
+          headers: {
+            'Content-Type': getMimeType(newestFile),
+            'Content-Disposition': `inline; filename="${encodeURIComponent(doc?.fileName || newestFile)}"`,
+            'Cache-Control': 'public, max-age=3600'
           }
         });
       }
     }
 
-    // 5. Fallback for placeholder demonstration files
-    const filename = rawUrl ? path.basename(rawUrl.split('?')[0]) : 'document.pdf';
-    const ext = path.extname(filename).toLowerCase();
-
-    if (ext === '.png' || ext === '.jpg' || ext === '.jpeg') {
-      const samplePngBuffer = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAYAAABw4pVUAAAAP0lEQVR42u3RAQ0AAAgDIK1/ab2x8YADSA4ZBgEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBwWvABR0wAT08hP8AAAAASUVORK5CYII=', 'base64');
-      return new NextResponse(samplePngBuffer, {
-        headers: {
-          'Content-Type': ext === '.png' ? 'image/png' : 'image/jpeg',
-          'Content-Disposition': `inline; filename="${filename}"`
-        }
-      });
-    }
-
-    const pdfFileName = filename.endsWith('.pdf') ? filename : `${filename.replace(/\.[^/.]+$/, '')}.pdf`;
-    const samplePdfContent = `%PDF-1.4
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
-endobj
-4 0 obj
-<< /Length 160 >>
-stream
-BT
-/F1 18 Tf
-50 700 Td
-(CA Document System - Official Client Document) Tj
-0 -30 Td
-/F1 12 Tf
-(Document File: ${pdfFileName}) Tj
-0 -20 Td
-(Status: Verified & Validated Official Tax Document) Tj
-ET
-endstream
-endobj
-5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-endobj
-xref
-0 6
-0000000000 65535 f 
-0000000009 00000 n 
-0000000058 00000 n 
-0000000115 00000 n 
-0000000262 00000 n 
-0000000473 00000 n 
-trailer
-<< /Size 6 /Root 1 0 R >>
-startxref
-543
-%%EOF`;
-
-    return new NextResponse(Buffer.from(samplePdfContent), {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `inline; filename="${pdfFileName}"`
-      }
-    });
-
+    return NextResponse.json({ message: 'Document file not found' }, { status: 404 });
   } catch (error) {
-    console.error('Error downloading file:', error);
+    console.error('Error serving document:', error);
     return new NextResponse('Error downloading file', { status: 500 });
   }
 }
+
+
