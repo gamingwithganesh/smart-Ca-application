@@ -148,19 +148,28 @@ export async function DELETE(req, { params }) {
     const resolvedParams = await params;
     const docId = resolvedParams.id;
 
-    const document = await Document.findOne({ _id: docId, uploadedBy: payload.userId });
-    if (!document) return NextResponse.json({ message: 'Document not found or unauthorized' }, { status: 404 });
+    const document = await Document.findById(docId);
+    if (!document) return NextResponse.json({ message: 'Document not found' }, { status: 404 });
 
-    // Delete S3 object FIRST before removing database record
-    if (document.storageType === 's3' && document.s3Key) {
+    // Authorization check: Super Admin, CA Firm Owner, or Document's Client
+    const isSuper = payload.role === 'superadmin';
+    const isOwnerCa = document.uploadedBy && document.uploadedBy.toString() === payload.userId?.toString();
+    const isClientOwner = payload.role === 'client' && (
+      (payload.clientId && document.clientId && document.clientId.toString() === payload.clientId.toString()) ||
+      (document.clientId && document.clientId.toString() === payload.userId?.toString())
+    );
+
+    if (!isSuper && !isOwnerCa && !isClientOwner && payload.role !== 'admin' && payload.role !== 'sub_ca') {
+      return NextResponse.json({ message: 'Unauthorized to delete this document' }, { status: 403 });
+    }
+
+    // Delete S3 object if present
+    if (document.s3Key) {
       try {
-        await deleteFromS3(document.s3Key);
+        await deleteFromS3(document.s3Key, document.bucket);
         console.log('🗑️ Successfully deleted S3 object:', document.s3Key);
       } catch (s3Err) {
-        console.error('❌ S3 deletion failed for key:', document.s3Key, s3Err);
-        return NextResponse.json({
-          message: `Failed to delete S3 storage file (${s3Err.message}). Database record was preserved for retry.`
-        }, { status: 500 });
+        console.warn('⚠️ S3 delete warning:', s3Err.message);
       }
     }
 
@@ -168,6 +177,6 @@ export async function DELETE(req, { params }) {
     return NextResponse.json({ success: true, message: 'Document deleted successfully' });
   } catch (error) {
     console.error('Delete document error:', error);
-    return NextResponse.json({ message: 'Server error' }, { status: 500 });
+    return NextResponse.json({ message: error.message || 'Server error' }, { status: 500 });
   }
 }

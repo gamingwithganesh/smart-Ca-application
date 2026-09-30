@@ -33,7 +33,8 @@ import {
   QrCode,
   Wallet,
   AlertTriangle,
-  Check
+  Check,
+  Trash2
 } from 'lucide-react';
 
 import { loadRazorpayScript } from '@/lib/loadRazorpay';
@@ -75,6 +76,11 @@ export default function ClientPortal() {
   const [paymentCheckoutState, setPaymentCheckoutState] = useState('idle'); // 'idle' | 'creating' | 'processing' | 'success' | 'failed'
   const [paymentErrorMessage, setPaymentErrorMessage] = useState('');
   const [paymentSuccessData, setPaymentSuccessData] = useState(null);
+
+  // Document Deletion Modal State
+  const [docToDelete, setDocToDelete] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingDoc, setDeletingDoc] = useState(false);
 
   // Chatbot State
   const [chatLog, setChatLog] = useState([]);
@@ -379,6 +385,34 @@ export default function ClientPortal() {
       window.URL.revokeObjectURL(blobUrl);
     } catch (err) {
       alert(`⚠️ Download error: ${err.message}`);
+    }
+  };
+
+  const handleOpenDeleteModal = (doc) => {
+    setDocToDelete(doc);
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!docToDelete) return;
+    setDeletingDoc(true);
+    const token = localStorage.getItem('token');
+    try {
+      const docId = docToDelete._id || docToDelete.id;
+      const res = await fetch(`/api/documents/${docId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to delete document');
+
+      setDocuments((prev) => prev.filter((d) => (d._id || d.id) !== docId));
+      setShowDeleteModal(false);
+      setDocToDelete(null);
+    } catch (err) {
+      alert(`⚠️ ${err.message}`);
+    } finally {
+      setDeletingDoc(false);
     }
   };
 
@@ -751,6 +785,15 @@ export default function ClientPortal() {
                                   <span>Unlock</span>
                                 </button>
                               )}
+
+                              {/* Delete Document Option */}
+                              <button
+                                onClick={() => handleOpenDeleteModal(doc)}
+                                className="bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 p-1.5 rounded-xl transition font-bold text-xs cursor-pointer"
+                                title="Delete Document"
+                              >
+                                <Trash2 size={13} />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1127,6 +1170,78 @@ export default function ClientPortal() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* DOCUMENT DELETE CONFIRMATION MODAL */}
+      {showDeleteModal && docToDelete && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+            <div className="p-5 bg-rose-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/20 rounded-xl">
+                  <Trash2 size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base leading-tight">Delete Document</h3>
+                  <p className="text-[11px] text-rose-100 font-medium">This action cannot be undone</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                Are you sure you want to permanently delete{' '}
+                <strong className="text-slate-900 font-bold">
+                  &quot;{docToDelete.documentName || docToDelete.fileName}&quot;
+                </strong>{' '}
+                for FY {docToDelete.financialYear || docToDelete.year}?
+              </p>
+
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-[11px] text-rose-800 font-medium space-y-1">
+                <div className="font-bold text-rose-900 flex items-center gap-1">
+                  <AlertTriangle size={13} />
+                  <span>Permanent Removal</span>
+                </div>
+                <div>This document and its storage files will be permanently removed from your vault.</div>
+              </div>
+
+              <div className="flex items-center gap-2.5 pt-2">
+                <button
+                  type="button"
+                  disabled={deletingDoc}
+                  onClick={handleConfirmDelete}
+                  className="flex-1 py-2.5 px-4 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {deletingDoc ? (
+                    <>
+                      <RefreshCw size={13} className="animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={13} />
+                      <span>Yes, Delete Document</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingDoc}
+                  onClick={() => setShowDeleteModal(false)}
+                  className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
