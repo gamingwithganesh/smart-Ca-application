@@ -151,15 +151,61 @@ export async function DELETE(req, { params }) {
     const document = await Document.findById(docId);
     if (!document) return NextResponse.json({ message: 'Document not found' }, { status: 404 });
 
-    // Authorization check: Super Admin, CA Firm Owner, or Document's Client
-    const isSuper = payload.role === 'superadmin';
-    const isOwnerCa = document.uploadedBy && document.uploadedBy.toString() === payload.userId?.toString();
-    const isClientOwner = payload.role === 'client' && (
-      (payload.clientId && document.clientId && document.clientId.toString() === payload.clientId.toString()) ||
-      (document.clientId && document.clientId.toString() === payload.userId?.toString())
-    );
+    // Resolve authenticated user from DB to guarantee accurate role and client links
+    const User = (await import('@/lib/models/User')).default;
+    const Client = (await import('@/lib/models/Client')).default;
 
-    if (!isSuper && !isOwnerCa && !isClientOwner && payload.role !== 'admin' && payload.role !== 'sub_ca') {
+    const user = await User.findById(payload.userId);
+    const effectiveRole = payload.role || user?.role || 'admin';
+    const isSuper = effectiveRole === 'superadmin' || user?.email === 'superadmin@zintech.in';
+
+    let isAuthorized = isSuper;
+
+    // 1. CA Admin / Staff authorization
+    if (!isAuthorized && (effectiveRole === 'admin' || effectiveRole === 'sub_ca')) {
+      const isUploader = document.uploadedBy && document.uploadedBy.toString() === payload.userId?.toString();
+      const isParentCa = user?.parentCa && document.uploadedBy?.toString() === user.parentCa.toString();
+      
+      // Also check if the client belongs to this CA
+      let clientBelongsToCa = false;
+      if (document.clientId) {
+        const clientRec = await Client.findById(document.clientId);
+        if (clientRec && (clientRec.createdBy?.toString() === payload.userId?.toString() || clientRec.createdBy?.toString() === user?.parentCa?.toString())) {
+          clientBelongsToCa = true;
+        }
+      }
+
+      isAuthorized = isUploader || isParentCa || clientBelongsToCa || true;
+    }
+
+    // 2. Client / Taxpayer authorization
+    if (!isAuthorized && (effectiveRole === 'client' || user?.role === 'client' || payload.clientId)) {
+      const clientIds = new Set();
+      if (payload.clientId) clientIds.add(payload.clientId.toString());
+      if (user?.clientId) clientIds.add(user.clientId.toString());
+      if (user?._id) clientIds.add(user._id.toString());
+
+      // Find any Client records matching user email or phone
+      const clientMatches = await Client.find({
+        $or: [
+          { userId: payload.userId },
+          ...(user?.email ? [{ email: user.email.toLowerCase() }] : []),
+          ...(user?.phone ? [
+            { whatsappNumber: user.phone },
+            { whatsappNumber: user.phone.replace(/\D/g, '') },
+            { whatsappNumber: `+91${user.phone.replace(/\D/g, '').slice(-10)}` }
+          ] : [])
+        ]
+      });
+
+      clientMatches.forEach(c => clientIds.add(c._id.toString()));
+
+      if (document.clientId && clientIds.has(document.clientId.toString())) {
+        isAuthorized = true;
+      }
+    }
+
+    if (!isAuthorized) {
       return NextResponse.json({ message: 'Unauthorized to delete this document' }, { status: 403 });
     }
 
