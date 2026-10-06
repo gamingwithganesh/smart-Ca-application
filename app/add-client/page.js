@@ -54,130 +54,134 @@ export default function AddClient() {
   };
 
   return (
-    <div className="max-w-xl mx-auto my-4 sm:my-8 liquid-glass p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm animate-in fade-in duration-300">
+    <div className="max-w-lg mx-auto my-6 sm:my-10 bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm">
       <div className="mb-6">
-        <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-0.5 rounded-full text-xs font-bold mb-1.5">
-          <span>➕ Client Registration</span>
-        </div>
-        <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">Add New CA Client</h2>
-        <p className="text-xs text-slate-500 font-medium">Register client profile, email, WhatsApp number & portal password</p>
+        <h2 className="text-xl font-bold text-slate-900 tracking-tight">Add Client</h2>
+        <p className="text-xs text-slate-500 mt-1">Fill in the details below to register a new client.</p>
       </div>
 
       {error && (
-        <div className="bg-slate-100 border border-slate-300 text-slate-800 p-3 rounded-xl text-xs mb-4 flex items-center gap-2 font-semibold">
-          <span>⚠️</span>
-          <span>{error}</span>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-3.5 py-2.5 rounded-xl text-xs mb-5 font-medium">
+          {error}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4 text-xs">
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Client Name / Business Name *</label>
+          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+            Client Name <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
             required
-            placeholder="e.g. Ramesh Kumar / ABC Enterprises"
-            className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 outline-none focus:border-slate-900 transition"
+            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 outline-none focus:bg-white focus:border-slate-900 transition"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Client Email Address (Optional)</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Email
+            </label>
             <input
               type="email"
-              placeholder="e.g. ramesh@example.com"
-              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 outline-none focus:border-slate-900 transition"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 outline-none focus:bg-white focus:border-slate-900 transition"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">WhatsApp Phone Number *</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              WhatsApp Number <span className="text-red-500">*</span>
+            </label>
             <input
-              type="text"
+              type="tel"
               required
-              placeholder="+919876543210"
-              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 outline-none focus:border-slate-900 transition"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 outline-none focus:bg-white focus:border-slate-900 transition"
               value={formData.whatsappNumber}
               onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
             />
           </div>
         </div>
 
-        {/* Client Portal Password Option */}
-        <div className="p-3.5 bg-emerald-50/60 rounded-2xl border border-emerald-200/80 space-y-2">
-          <div className="flex justify-between items-center">
-            <label className="block text-xs font-bold uppercase tracking-wider text-emerald-950">
-              🔑 Client Portal Login Password
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-xs font-semibold text-slate-700">
+              Portal Password
             </label>
             <button
               type="button"
               onClick={handleGeneratePassword}
-              className="text-[11px] bg-white hover:bg-slate-900 hover:text-white text-slate-800 border border-slate-300 font-bold px-2.5 py-1 rounded-lg transition cursor-pointer"
+              className="text-[11px] text-slate-600 hover:text-slate-900 font-semibold underline underline-offset-2 transition cursor-pointer"
             >
-              🎲 Auto-Generate Password
+              Generate
             </button>
           </div>
           <div className="relative flex items-center">
             <input
               type={showPassword ? 'text' : 'password'}
-              placeholder="e.g. Pass#1234 (Set password for client to log in)"
-              className="w-full pl-3.5 pr-20 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 outline-none focus:border-slate-900 transition"
+              className="w-full pl-3.5 pr-16 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 outline-none focus:bg-white focus:border-slate-900 transition"
               value={formData.portalPassword}
               onChange={(e) => setFormData({ ...formData, portalPassword: e.target.value })}
             />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-2 text-[10px] font-bold text-slate-500 hover:text-slate-900 px-2 py-1 bg-slate-100 rounded-md"
-            >
-              {showPassword ? 'Hide' : 'Show'}
-            </button>
+            {formData.portalPassword && (
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-2.5 text-[11px] font-semibold text-slate-500 hover:text-slate-800 px-1.5 py-0.5"
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            )}
           </div>
-          <p className="text-[10px] text-slate-500 font-medium">
-            Optional. If set, this client can immediately log in to the Client Portal using their Mobile/Email + this Password.
-          </p>
         </div>
 
-        <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">Client Entity Type</label>
-          <select
-            className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 outline-none focus:border-slate-900 transition"
-            value={formData.clientType}
-            onChange={(e) => setFormData({ ...formData, clientType: e.target.value })}
-          >
-            <option value="INDIVIDUAL">Individual</option>
-            <option value="PROPRIETORSHIP">Proprietorship</option>
-            <option value="PARTNERSHIP_LLP">Partnership / LLP</option>
-            <option value="COMPANY">Private Limited / Company</option>
-            <option value="TRUST_NGO">Trust / NGO</option>
-          </select>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Entity Type
+            </label>
+            <select
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 outline-none focus:bg-white focus:border-slate-900 transition cursor-pointer"
+              value={formData.clientType}
+              onChange={(e) => setFormData({ ...formData, clientType: e.target.value })}
+            >
+              <option value="INDIVIDUAL">Individual</option>
+              <option value="PROPRIETORSHIP">Proprietorship</option>
+              <option value="PARTNERSHIP_LLP">Partnership / LLP</option>
+              <option value="COMPANY">Company</option>
+              <option value="TRUST_NGO">Trust / NGO</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Consultant Phone
+            </label>
+            <input
+              type="tel"
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 outline-none focus:bg-white focus:border-slate-900 transition"
+              value={formData.consultantPhone}
+              onChange={(e) => setFormData({ ...formData, consultantPhone: e.target.value })}
+            />
+          </div>
         </div>
 
-        <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">CA Consultant Phone (Optional)</label>
-          <input
-            type="text"
-            placeholder="+919876000000"
-            className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 outline-none focus:border-slate-900 transition"
-            value={formData.consultantPhone}
-            onChange={(e) => setFormData({ ...formData, consultantPhone: e.target.value })}
-          />
-        </div>
-
-        <div className="pt-3 flex flex-col sm:flex-row gap-2.5">
+        <div className="pt-4 flex items-center gap-3">
           <button
             type="submit"
             disabled={loading}
-            className="flex-1 btn-primary py-2.5 rounded-xl text-xs uppercase tracking-wider disabled:opacity-50 cursor-pointer"
+            className="flex-1 btn-primary py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer disabled:opacity-50"
           >
-            {loading ? 'Saving Client...' : 'Save Client Profile'}
+            {loading ? 'Saving...' : 'Save Client'}
           </button>
-          <Link href="/clients" className="btn-outline px-5 py-2.5 rounded-xl text-xs text-center font-bold">
+          <Link
+            href="/clients"
+            className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs text-center transition"
+          >
             Cancel
           </Link>
         </div>

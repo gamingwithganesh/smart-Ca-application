@@ -891,147 +891,109 @@ export default function ClientPortal() {
       </div>
       )}
 
-      {/* DOCUMENT PREVIEW MODAL WITH CA WATERMARK OVERLAY */}
+      {/* DOCUMENT PREVIEW MODAL */}
       {showPreviewModal && previewDoc && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
-            {/* Modal Header */}
-            <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-600 rounded-xl text-white">
-                  <FileText size={20} />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm sm:text-base leading-tight">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+            {/* Minimalist Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900 leading-tight">
                     {previewDoc.documentName || previewDoc.fileName}
                   </h3>
-                  <div className="text-xs text-slate-400 font-medium flex items-center gap-2 mt-0.5">
-                    <span>FY: {previewDoc.financialYear || previewDoc.year}</span>
-                    <span>•</span>
-                    <span>Category: {previewDoc.category || previewDoc.documentType}</span>
-                    <span>•</span>
-                    {previewDoc.paymentStatus === 'COMPLETED' || previewDoc.paymentStatus === 'FREE' ? (
-                      <span className="text-emerald-400 font-bold flex items-center gap-1">
-                        <CheckCircle2 size={12} />
-                        Clean Official Copy
-                      </span>
-                    ) : (
-                      <span className="text-amber-400 font-bold flex items-center gap-1">
-                        <Lock size={12} />
-                        Watermarked Preview Copy
-                      </span>
-                    )}
-                  </div>
+                  <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                    {previewDoc.category || previewDoc.documentType || 'Document'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500 font-medium flex items-center gap-2">
+                  <span>FY {previewDoc.financialYear || previewDoc.year || '2024-25'}</span>
+                  <span>•</span>
+                  {previewDoc.paymentStatus === 'COMPLETED' || previewDoc.paymentStatus === 'FREE' ? (
+                    <span className="text-emerald-700 font-bold flex items-center gap-1">
+                      <CheckCircle2 size={12} /> Verified Clean
+                    </span>
+                  ) : (
+                    <span className="text-slate-600 font-bold flex items-center gap-1">
+                      <Lock size={12} className="text-slate-400" /> ₹{previewDoc.paymentAmount || 500}
+                    </span>
+                  )}
                 </div>
               </div>
 
               <button
                 onClick={() => setShowPreviewModal(false)}
-                className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer"
+                className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center transition cursor-pointer"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
-            {/* Payment Alert Banner if Unpaid */}
-            {!(previewDoc.paymentStatus === 'COMPLETED' || previewDoc.paymentStatus === 'FREE') && (
-              <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-950">
-                <div className="flex items-center gap-2 text-xs font-semibold">
-                  <AlertTriangle size={16} className="text-amber-700 shrink-0" />
-                  <span>
-                    <strong>Payment Pending (₹{previewDoc.paymentAmount || 500})</strong>: This preview has CA Firm watermarks. Complete payment to remove watermarks and download the official verified document.
-                  </span>
-                </div>
+            {/* Document Content View */}
+            <div className="flex-1 overflow-auto p-5 sm:p-8 bg-slate-50 flex items-center justify-center min-h-[280px] relative select-none">
+              <div className="relative bg-white rounded-2xl border border-slate-200 shadow-sm p-6 max-w-md w-full flex flex-col items-center justify-center text-center space-y-3">
+                {previewDoc.mimeType?.includes('image') || previewDoc.fileName?.match(/\.(png|jpe?g|webp|gif|svg)$/i) ? (
+                  <img
+                    src={previewDoc.fileUrl}
+                    alt="Preview"
+                    className="max-h-[360px] w-auto object-contain rounded-xl"
+                  />
+                ) : (
+                  <>
+                    <div className="w-14 h-14 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center justify-center border border-emerald-200">
+                      <FileText size={26} />
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-900 text-sm">
+                        {previewDoc.documentName || previewDoc.fileName}
+                      </div>
+                      <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                        {previewDoc.fileSize ? `${(previewDoc.fileSize / 1024).toFixed(1)} KB` : 'PDF Document'}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Subtle Minimalist Preview Watermark Stamp (Unpaid) */}
+                {!(previewDoc.paymentStatus === 'COMPLETED' || previewDoc.paymentStatus === 'FREE') && (
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center bg-white/40 backdrop-blur-[0.5px] rounded-2xl">
+                    <div className="transform -rotate-12 px-4 py-1.5 rounded-xl bg-slate-900/10 border border-slate-900/20 text-slate-800/50 font-black text-xs sm:text-sm tracking-widest uppercase select-none">
+                      Preview Copy
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Minimalist Footer */}
+            <div className="p-3.5 sm:p-4 bg-white border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowPreviewModal(false)}
+                className="btn-outline px-4 py-2 rounded-xl text-xs font-semibold"
+              >
+                Close
+              </button>
+
+              {previewDoc.paymentStatus === 'COMPLETED' || previewDoc.paymentStatus === 'FREE' ? (
+                <button
+                  onClick={() => handleDownloadDocument(previewDoc.fileUrl, previewDoc.originalFilename || previewDoc.fileName || 'document.pdf')}
+                  className="btn-primary px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 font-bold cursor-pointer"
+                >
+                  <Download size={14} />
+                  <span>Download</span>
+                </button>
+              ) : (
                 <button
                   onClick={() => {
                     setShowPreviewModal(false);
                     handleOpenPaymentModal(previewDoc);
                   }}
-                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-1.5 rounded-xl transition flex items-center gap-1.5 shrink-0 cursor-pointer shadow-xs"
+                  className="btn-primary px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 font-bold cursor-pointer"
                 >
                   <Lock size={13} />
-                  <span>Pay ₹{previewDoc.paymentAmount || 500} & Remove Watermark</span>
+                  <span>Pay ₹{previewDoc.paymentAmount || 500} & Download</span>
                 </button>
-              </div>
-            )}
-
-            {/* Document Content View Area with Relative Container */}
-            <div className="flex-1 overflow-auto p-4 sm:p-8 bg-slate-100 flex items-center justify-center min-h-[380px] relative select-none">
-              
-              {/* Actual Document (Image or PDF view) */}
-              <div className="relative bg-white rounded-2xl shadow-lg border border-slate-300 overflow-hidden max-w-2xl w-full flex items-center justify-center min-h-[420px]">
-                {previewDoc.mimeType?.includes('image') || previewDoc.fileName?.match(/\.(png|jpe?g|webp|gif|svg)$/i) ? (
-                  <img
-                    src={previewDoc.fileUrl}
-                    alt="Document Preview"
-                    className="max-h-[520px] w-auto object-contain mx-auto"
-                  />
-                ) : (
-                  <div className="p-8 text-center space-y-4 w-full">
-                    <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto border border-rose-200">
-                      <FileText size={32} />
-                    </div>
-                    <div className="font-extrabold text-slate-900 text-lg">
-                      {previewDoc.documentName || previewDoc.fileName}
-                    </div>
-                    <div className="text-xs text-slate-500 font-medium max-w-md mx-auto">
-                      Official Tax Document issued for Financial Year {previewDoc.financialYear || previewDoc.year}.
-                    </div>
-                  </div>
-                )}
-
-                {/* WATERMARK OVERLAY (When NOT Paid) */}
-                {!(previewDoc.paymentStatus === 'COMPLETED' || previewDoc.paymentStatus === 'FREE') && (
-                  <div className="absolute inset-0 pointer-events-none flex flex-col justify-around overflow-hidden bg-white/20 backdrop-blur-[0.5px]">
-                    {/* Repeating diagonal watermark patterns */}
-                    {[1, 2, 3, 4, 5, 6].map((row) => (
-                      <div
-                        key={row}
-                        className="transform -rotate-25 whitespace-nowrap text-center text-slate-900/35 font-black text-xl sm:text-2xl md:text-3xl tracking-widest uppercase select-none drop-shadow-xs"
-                      >
-                        {caFirmDisplayName} • UNPAID COPY • PREVIEW ONLY • {caFirmDisplayName}
-                      </div>
-                    ))}
-                    <div className="absolute inset-0 border-4 border-dashed border-rose-400/40 rounded-2xl pointer-events-none m-2"></div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Modal Footer Actions */}
-            <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between">
-              <div className="text-xs text-slate-500 font-medium">
-                Issued by: <strong className="text-slate-900">{caFirmDisplayName}</strong>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {previewDoc.paymentStatus === 'COMPLETED' || previewDoc.paymentStatus === 'FREE' ? (
-                  <button
-                    onClick={() => handleDownloadDocument(previewDoc.fileUrl, previewDoc.originalFilename || previewDoc.fileName || 'document.pdf')}
-                    className="btn-primary px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 font-bold shadow-sm cursor-pointer"
-                  >
-                    <Download size={14} />
-                    <span>Download Clean Original</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setShowPreviewModal(false);
-                      handleOpenPaymentModal(previewDoc);
-                    }}
-                    className="btn-primary px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 font-bold shadow-sm cursor-pointer"
-                  >
-                    <Lock size={14} />
-                    <span>Pay ₹{previewDoc.paymentAmount || 500} & Unlock Clean Copy</span>
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowPreviewModal(false)}
-                  className="btn-outline px-3.5 py-2 rounded-xl text-xs font-bold"
-                >
-                  Close
-                </button>
-              </div>
+              )}
             </div>
           </div>
         </div>

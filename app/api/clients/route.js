@@ -11,9 +11,16 @@ export async function GET(req) {
 
     await dbConnect();
 
+    const { searchParams } = new URL(req.url);
+    const filterCaId = searchParams.get('caId');
+
     // If superadmin, can see all clients or filter by CA
-    const caId = auth.isSuperAdmin ? null : auth.effectiveCaId;
-    const query = caId ? { createdBy: caId } : {};
+    let query = {};
+    if (auth.isSuperAdmin) {
+      if (filterCaId) query.createdBy = filterCaId;
+    } else {
+      query.createdBy = auth.effectiveCaId;
+    }
 
     const clients = await Client.find(query)
       .populate('createdBy', 'name firmName')

@@ -3,6 +3,19 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import {
+  LayoutDashboard,
+  Users,
+  UserPlus,
+  Upload,
+  Building2,
+  MessageSquare,
+  ShieldCheck,
+  FileText,
+  LogOut,
+  Menu,
+  X
+} from 'lucide-react';
 import './globals.css';
 
 export default function RootLayout({ children }) {
@@ -53,31 +66,31 @@ export default function RootLayout({ children }) {
   let navLinks = [];
   if (role === 'client') {
     navLinks = [
-      { href: '/portal', label: 'My Documents Vault', icon: '📄' }
+      { href: '/portal', label: 'My Documents Vault', icon: FileText }
     ];
   } else if (role === 'superadmin') {
     navLinks = [
-      { href: '/superadmin', label: 'Super Admin Console', icon: '👑', badge: 'Master' },
-      { href: '/dashboard', label: 'CA Firm View', icon: '📊' },
-      { href: '/clients', label: 'All Clients', icon: '👥' },
-      { href: '/whatsapp-simulator', label: 'AI Portal', icon: '💬' }
+      { href: '/superadmin', label: 'Super Admin Console', icon: ShieldCheck, badge: 'Master' },
+      { href: '/dashboard', label: 'CA Firm View', icon: LayoutDashboard },
+      { href: '/clients', label: 'All Clients', icon: Users },
+      { href: '/whatsapp-simulator', label: 'AI Portal', icon: MessageSquare }
     ];
   } else if (role === 'sub_ca') {
     navLinks = [
-      { href: '/dashboard', label: 'Dashboard', icon: '📊' },
-      { href: '/clients', label: 'Clients', icon: '👥' },
-      { href: '/add-client', label: 'Add Client', icon: '➕' },
-      { href: '/upload-document', label: 'Upload Document', icon: '📤' },
-      { href: '/whatsapp-simulator', label: 'WhatsApp AI Portal', icon: '💬' }
+      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/clients', label: 'Clients', icon: Users },
+      { href: '/add-client', label: 'Add Client', icon: UserPlus },
+      { href: '/upload-document', label: 'Upload Document', icon: Upload },
+      { href: '/whatsapp-simulator', label: 'WhatsApp AI Portal', icon: MessageSquare }
     ];
   } else {
     navLinks = [
-      { href: '/dashboard', label: 'Dashboard', icon: '📊' },
-      { href: '/clients', label: 'Clients', icon: '👥' },
-      { href: '/add-client', label: 'Add Client', icon: '➕' },
-      { href: '/upload-document', label: 'Upload Document', icon: '📤' },
-      { href: '/team', label: 'Team & Sub-CAs', icon: '🏢' },
-      { href: '/whatsapp-simulator', label: 'WhatsApp AI Portal', icon: '💬' }
+      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/clients', label: 'Clients', icon: Users },
+      { href: '/add-client', label: 'Add Client', icon: UserPlus },
+      { href: '/upload-document', label: 'Upload Document', icon: Upload },
+      { href: '/team', label: 'Team & Sub-CAs', icon: Building2 },
+      { href: '/whatsapp-simulator', label: 'WhatsApp AI Portal', icon: MessageSquare }
     ];
   }
 
@@ -87,6 +100,9 @@ export default function RootLayout({ children }) {
         <title>Smart CA Vault • AI Document Platform</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
         <meta name="description" content="Secure Document Management System for Chartered Accountants" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Arimo:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet" />
       </head>
       <body className="min-h-screen flex flex-col bg-slate-50 text-slate-900 antialiased">
         {!isAuthPage && (
@@ -129,17 +145,18 @@ export default function RootLayout({ children }) {
               <nav className="hidden lg:flex items-center gap-1 bg-slate-100/80 p-1 rounded-2xl border border-slate-200">
                 {navLinks.map((link) => {
                   const isActive = pathname === link.href;
+                  const Icon = link.icon;
                   return (
                     <Link
                       key={link.href}
                       href={link.href}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 ${
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 ${
                         isActive
                           ? 'bg-slate-900 text-white shadow-xs font-bold'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-white'
                       }`}
                     >
-                      <span>{link.icon}</span>
+                      {Icon && <Icon size={14} className={isActive ? 'text-emerald-400' : 'text-slate-500'} />}
                       <span>{link.label}</span>
                       {link.badge && (
                         <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded-full font-bold border border-emerald-300">
@@ -172,7 +189,7 @@ export default function RootLayout({ children }) {
                   className="liquid-btn-logout font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer"
                   title="Sign Out"
                 >
-                  <span className="text-slate-400 font-bold">↳</span>
+                  <LogOut size={14} className="text-slate-500" />
                   <span>Sign Out</span>
                 </button>
               </div>
@@ -183,7 +200,7 @@ export default function RootLayout({ children }) {
                 className="lg:hidden p-2 text-slate-700 hover:text-slate-900 rounded-xl hover:bg-slate-100 border border-slate-200"
                 aria-label="Toggle navigation menu"
               >
-                <span className="text-lg font-bold">{isMenuOpen ? '✕' : '☰'}</span>
+                {isMenuOpen ? <X size={18} /> : <Menu size={18} />}
               </button>
             </div>
 
@@ -202,34 +219,37 @@ export default function RootLayout({ children }) {
                   </div>
                 )}
 
-                {navLinks.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    onClick={() => setIsMenuOpen(false)}
-                    className={`block px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between ${
-                      pathname === link.href
-                        ? 'bg-slate-900 text-white'
-                        : 'text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      <span>{link.icon}</span>
-                      <span>{link.label}</span>
-                    </span>
-                    {link.badge && (
-                      <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-bold">
-                        {link.badge}
+                {navLinks.map((link) => {
+                  const Icon = link.icon;
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={() => setIsMenuOpen(false)}
+                      className={`block px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-between ${
+                        pathname === link.href
+                          ? 'bg-slate-900 text-white'
+                          : 'text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2.5">
+                        {Icon && <Icon size={16} className={pathname === link.href ? 'text-emerald-400' : 'text-slate-500'} />}
+                        <span>{link.label}</span>
                       </span>
-                    )}
-                  </Link>
-                ))}
+                      {link.badge && (
+                        <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full font-bold">
+                          {link.badge}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
 
                 <button
                   onClick={handleLogout}
                   className="w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 mt-2 flex items-center gap-2 border border-slate-200"
                 >
-                  <span className="text-slate-400">↳</span>
+                  <LogOut size={14} className="text-slate-500" />
                   <span>Sign Out</span>
                 </button>
               </div>
@@ -237,12 +257,12 @@ export default function RootLayout({ children }) {
           </header>
         )}
 
-        {/* Main Content Area with adaptive responsive padding */}
-        <main className="flex-1 p-3.5 sm:p-6 md:p-8 max-w-7xl mx-auto w-full">
+        {/* Main Content Area */}
+        <main className={isAuthPage ? 'flex-1 w-full min-h-screen auth-page-bg flex flex-col justify-center' : 'flex-1 p-3.5 sm:p-6 md:p-8 max-w-7xl mx-auto w-full'}>
           {children}
         </main>
 
-        {/* 2-Tone Clean Footer */}
+        {/* Clean Modern Footer */}
         {!isAuthPage && (
           <footer className="bg-white border-t border-slate-200 text-slate-500 text-xs py-8 mt-12">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
@@ -251,16 +271,18 @@ export default function RootLayout({ children }) {
               </div>
               <div className="flex items-center gap-3 font-medium text-[11px] text-slate-500">
                 {role === 'superadmin' ? (
-                  <Link href="/superadmin" className="text-emerald-700 font-bold hover:underline">
-                    👑 Super Admin Console
+                  <Link href="/superadmin" className="text-emerald-700 font-bold hover:underline flex items-center gap-1.5">
+                    <ShieldCheck size={13} />
+                    <span>Super Admin Console</span>
                   </Link>
                 ) : (
-                  <Link href="/team" className="text-emerald-700 font-bold hover:underline">
-                    🏢 Firm Team & Sub-CAs
+                  <Link href="/team" className="text-emerald-700 font-bold hover:underline flex items-center gap-1.5">
+                    <Building2 size={13} />
+                    <span>Firm Team & Sub-CAs</span>
                   </Link>
                 )}
                 <span>•</span>
-                <span>Responsive 2-Tone Edition</span>
+                <span>Responsive Modern Edition</span>
               </div>
             </div>
           </footer>

@@ -14,12 +14,18 @@ export async function GET(req) {
     await dbConnect();
     const { searchParams } = new URL(req.url);
     const clientId = searchParams.get('clientId');
+    const filterCaId = searchParams.get('caId');
 
-    const caId = auth.isSuperAdmin ? null : auth.effectiveCaId;
-    const query = caId ? { uploadedBy: caId } : {};
+    let query = {};
+    if (auth.isSuperAdmin) {
+      if (filterCaId) query.uploadedBy = filterCaId;
+    } else {
+      query.uploadedBy = auth.effectiveCaId;
+    }
 
+    const caId = auth.effectiveCaId;
     if (clientId) {
-      if (caId) {
+      if (caId && !auth.isSuperAdmin) {
         // Verify client belongs to logged in CA firm
         const client = await Client.findOne({ _id: clientId, createdBy: caId });
         if (!client) {

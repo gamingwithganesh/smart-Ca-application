@@ -3,6 +3,27 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import {
+  Search,
+  Building2,
+  Users,
+  Folder,
+  Pause,
+  Play,
+  AlertTriangle,
+  Loader2,
+  Pencil,
+  Trash2,
+  Mail,
+  Phone,
+  X,
+  ShieldCheck,
+  LayoutDashboard,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  CreditCard
+} from 'lucide-react';
 import PaymentHistoryTable from '@/components/PaymentHistoryTable';
 
 export default function SuperAdminDashboard() {
@@ -305,8 +326,9 @@ export default function SuperAdminDashboard() {
       <div className="liquid-glass rounded-2xl sm:rounded-3xl p-5 sm:p-7 border border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full bg-slate-900 text-white font-extrabold text-[11px] uppercase tracking-wider">
-              👑 Master Console
+            <span className="px-2.5 py-0.5 rounded-full bg-slate-900 text-white font-extrabold text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+              <ShieldCheck size={12} className="text-emerald-400" />
+              <span>Master Console</span>
             </span>
             <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-bold text-[11px] border border-emerald-200">
               Platform Admin
@@ -315,7 +337,7 @@ export default function SuperAdminDashboard() {
           <h1 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900">
             CA Firms & Subscriptions
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 max-w-2xl">
+          <p className="text-xs sm:text-sm text-slate-500 max-w-2xl font-medium">
             Provision CA accounts, control monthly subscriptions, and pause/resume access for non-paying clients.
           </p>
         </div>
@@ -324,30 +346,36 @@ export default function SuperAdminDashboard() {
           <button
             onClick={handlePurgeDemoData}
             disabled={actionLoading}
-            className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition disabled:opacity-50 cursor-pointer"
+            className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
             title="Wipe demo test accounts"
           >
-            🧹 Purge Demo Data
+            <Trash2 size={13} className="text-slate-500" />
+            <span>Purge Demo Data</span>
           </button>
           <button
             onClick={() => fetchAllData()}
-            className="w-full sm:w-auto px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition cursor-pointer"
+            className="w-full sm:w-auto px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
             title="Refresh Table"
           >
-            🔄 Refresh
+            <RefreshCw size={13} className="text-slate-500" />
+            <span>Refresh</span>
           </button>
           <button
             onClick={() => setIsAddModalOpen(true)}
             className="w-full sm:w-auto px-4 py-2 rounded-xl btn-primary text-xs flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            <span>➕</span> Add CA Firm
+            <Plus size={14} />
+            <span>Add CA Firm</span>
           </button>
         </div>
       </div>
 
       {error && (
         <div className="p-4 rounded-2xl bg-slate-100 border border-slate-300 text-slate-800 text-xs font-semibold flex items-center justify-between">
-          <span>⚠️ {error}</span>
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={15} className="text-amber-600 shrink-0" />
+            <span>{error}</span>
+          </div>
           <Link href="/login" className="underline font-bold ml-2 text-emerald-700">
             Sign In Again
           </Link>
@@ -355,26 +383,28 @@ export default function SuperAdminDashboard() {
       )}
 
       {/* Top View Selector Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
         <button
           onClick={() => setActiveView('firms')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shrink-0 ${
             activeView === 'firms'
               ? 'bg-slate-900 text-white shadow-xs'
               : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
           }`}
         >
-          <span>🏢 CA Firms Directory & Stats</span>
+          <Building2 size={14} className={activeView === 'firms' ? 'text-emerald-400' : 'text-slate-500'} />
+          <span>CA Firms Directory & Stats</span>
         </button>
         <button
           onClick={() => setActiveView('payments')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shrink-0 ${
             activeView === 'payments'
               ? 'bg-slate-900 text-white shadow-xs'
               : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
           }`}
         >
-          <span>💳 Razorpay Payments & Invoices</span>
+          <CreditCard size={14} className={activeView === 'payments' ? 'text-emerald-400' : 'text-slate-500'} />
+          <span>Razorpay Payments & Invoices</span>
         </button>
       </div>
 
@@ -436,7 +466,7 @@ export default function SuperAdminDashboard() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-8 pr-3 py-2 rounded-xl bg-white border border-slate-300 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-slate-800 transition"
           />
-          <span className="absolute left-2.5 top-2.5 text-slate-400 text-xs">🔍</span>
+          <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
         </form>
 
         {/* Status Filters */}
@@ -477,7 +507,8 @@ export default function SuperAdminDashboard() {
       <div className="liquid-glass rounded-2xl sm:rounded-3xl border border-slate-200 overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-slate-200 bg-white/70 flex items-center justify-between">
           <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-            <span>🏢 CA Firms Directory</span>
+            <Building2 size={16} className="text-slate-700" />
+            <span>CA Firms Directory</span>
             <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 text-xs font-black">
               {cas.length} Firms
             </span>
@@ -488,9 +519,9 @@ export default function SuperAdminDashboard() {
         </div>
 
         {loading ? (
-          <div className="p-12 text-center text-slate-500 text-xs">
-            <div className="animate-spin text-2xl mb-2">⏳</div>
-            Loading CA firm records...
+          <div className="p-12 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-2">
+            <Loader2 size={24} className="animate-spin text-slate-700" />
+            <span>Loading CA firm records...</span>
           </div>
         ) : cas.length === 0 ? (
           <div className="p-12 text-center text-slate-500 text-xs space-y-3">
@@ -548,8 +579,8 @@ export default function SuperAdminDashboard() {
                               {ca.firmName || 'CA Practice'}
                             </div>
                             <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
-                              <span>📧 {ca.email}</span>
-                              {ca.phone && <span>• 📞 {ca.phone}</span>}
+                              <span className="flex items-center gap-1"><Mail size={12} className="text-slate-400" /> {ca.email}</span>
+                              {ca.phone && <span className="flex items-center gap-1">• <Phone size={12} className="text-slate-400" /> {ca.phone}</span>}
                             </div>
                           </div>
                         </div>
@@ -579,14 +610,21 @@ export default function SuperAdminDashboard() {
                               })}
                             </div>
                             {daysLeft !== null && (
-                              <div className={`text-[10px] font-bold ${
+                              <div className={`text-[10px] font-bold flex items-center gap-1 ${
                                 daysLeft <= 3
                                   ? 'text-rose-600'
                                   : daysLeft <= 10
                                   ? 'text-amber-600'
                                   : 'text-emerald-700'
                               }`}>
-                                {daysLeft <= 0 ? '⚠️ Expired' : `${daysLeft} days left`}
+                                {daysLeft <= 0 ? (
+                                  <>
+                                    <AlertTriangle size={11} className="text-rose-600" />
+                                    <span>Expired</span>
+                                  </>
+                                ) : (
+                                  `${daysLeft} days left`
+                                )}
                               </div>
                             )}
                           </div>
@@ -598,12 +636,14 @@ export default function SuperAdminDashboard() {
                       {/* Team & Usage */}
                       <td className="p-4 text-center">
                         <div className="inline-flex items-center gap-2 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200">
-                          <span className="text-slate-700 font-bold text-[11px]">
-                            👥 {ca.subCaCount || 0}/{ca.subscription?.maxSubCas || 5}
+                          <span className="text-slate-700 font-bold text-[11px] flex items-center gap-1">
+                            <Users size={12} className="text-slate-500" />
+                            <span>{ca.subCaCount || 0}/{ca.subscription?.maxSubCas || 5}</span>
                           </span>
                           <span className="text-slate-300">•</span>
-                          <span className="text-slate-700 font-bold text-[11px]">
-                            📁 {ca.clientCount || 0}/{ca.subscription?.maxClients || 200}
+                          <span className="text-slate-700 font-bold text-[11px] flex items-center gap-1">
+                            <Folder size={12} className="text-slate-500" />
+                            <span>{ca.clientCount || 0}/{ca.subscription?.maxClients || 200}</span>
                           </span>
                         </div>
                       </td>
@@ -613,7 +653,7 @@ export default function SuperAdminDashboard() {
                         {isPaused ? (
                           <div className="space-y-1">
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-200 text-slate-800 border border-slate-300">
-                              <span>⏸</span> PAUSED
+                              <Pause size={10} /> PAUSED
                             </span>
                             {ca.pauseReason && (
                               <div className="text-[10px] text-slate-500 font-medium max-w-[130px] truncate" title={ca.pauseReason}>
@@ -623,7 +663,7 @@ export default function SuperAdminDashboard() {
                           </div>
                         ) : isExpired ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300">
-                            <span>⚠️</span> EXPIRED
+                            <AlertTriangle size={10} /> EXPIRED
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300">
@@ -635,23 +675,34 @@ export default function SuperAdminDashboard() {
                       {/* Action Buttons */}
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* View CA Firm Dashboard */}
+                          <Link
+                            href={`/dashboard?caId=${ca._id}`}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] transition flex items-center gap-1.5"
+                            title="Open CA Firm View / Vault"
+                          >
+                            <LayoutDashboard size={12} className="text-emerald-400" />
+                            <span>Vault</span>
+                          </Link>
+
                           {/* Pause / Resume Button */}
                           <button
                             onClick={() => handleToggleStatus(ca)}
-                            className={`px-3 py-1 rounded-xl font-bold text-[11px] transition cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-xl font-bold text-[11px] transition cursor-pointer flex items-center gap-1.5 ${
                               isPaused
                                 ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                                 : 'bg-slate-800 hover:bg-slate-900 text-white'
                             }`}
                             title={isPaused ? 'Resume account' : 'Pause account'}
                           >
-                            <span>{isPaused ? '▶️ Resume' : '⏸ Pause'}</span>
+                            {isPaused ? <Play size={11} /> : <Pause size={11} />}
+                            <span>{isPaused ? 'Resume' : 'Pause'}</span>
                           </button>
 
                           {/* Quick Extend */}
                           <button
                             onClick={() => handleQuickExtend(ca._id, 30)}
-                            className="px-2 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] border border-slate-300 transition cursor-pointer"
+                            className="px-2 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] border border-slate-300 transition cursor-pointer"
                             title="Quick Extend +30 Days"
                           >
                             +30d
@@ -666,19 +717,19 @@ export default function SuperAdminDashboard() {
                               });
                               setIsEditModalOpen(true);
                             }}
-                            className="p-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-bold border border-slate-200 transition cursor-pointer"
+                            className="p-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-bold border border-slate-200 transition cursor-pointer"
                             title="Edit Limits & Plan"
                           >
-                            ✏️
+                            <Pencil size={12} />
                           </button>
 
                           {/* Delete CA */}
                           <button
                             onClick={() => handleDeleteCa(ca)}
-                            className="p-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-400 hover:text-rose-600 font-bold border border-slate-200 transition cursor-pointer"
+                            className="p-2 rounded-xl bg-white hover:bg-slate-100 text-slate-400 hover:text-rose-600 font-bold border border-slate-200 transition cursor-pointer"
                             title="Delete CA Firm"
                           >
-                            🗑️
+                            <Trash2 size={12} />
                           </button>
                         </div>
                       </td>
@@ -706,9 +757,9 @@ export default function SuperAdminDashboard() {
               </div>
               <button
                 onClick={() => setIsAddModalOpen(false)}
-                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs flex items-center justify-center"
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center"
               >
-                ✕
+                <X size={14} />
               </button>
             </div>
 
@@ -719,7 +770,6 @@ export default function SuperAdminDashboard() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. CA Rajesh Sharma"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-medium focus:bg-white focus:outline-none focus:border-slate-900"
@@ -730,7 +780,6 @@ export default function SuperAdminDashboard() {
                   <label className="font-bold text-slate-700">Firm Name</label>
                   <input
                     type="text"
-                    placeholder="e.g. Sharma & Associates"
                     value={formData.firmName}
                     onChange={(e) => setFormData({ ...formData, firmName: e.target.value })}
                     className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-medium focus:bg-white focus:outline-none focus:border-slate-900"
@@ -744,7 +793,6 @@ export default function SuperAdminDashboard() {
                   <input
                     type="email"
                     required
-                    placeholder="rajesh@sharmaca.com"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-medium focus:bg-white focus:outline-none focus:border-slate-900"
@@ -756,7 +804,6 @@ export default function SuperAdminDashboard() {
                   <input
                     type="password"
                     required
-                    placeholder="Min 6 characters"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-medium focus:bg-white focus:outline-none focus:border-slate-900"
@@ -768,8 +815,7 @@ export default function SuperAdminDashboard() {
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700">Phone / WhatsApp</label>
                   <input
-                    type="text"
-                    placeholder="+91 9876543210"
+                    type="tel"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-medium focus:bg-white focus:outline-none focus:border-slate-900"
@@ -780,7 +826,6 @@ export default function SuperAdminDashboard() {
                   <label className="font-bold text-slate-700">City</label>
                   <input
                     type="text"
-                    placeholder="Mumbai / Delhi"
                     value={formData.firmCity}
                     onChange={(e) => setFormData({ ...formData, firmCity: e.target.value })}
                     className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-medium focus:bg-white focus:outline-none focus:border-slate-900"
@@ -875,8 +920,8 @@ export default function SuperAdminDashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
           <div className="bg-white rounded-3xl p-5 sm:p-7 max-w-md w-full border border-slate-200 shadow-2xl space-y-4">
             <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center text-lg font-bold shrink-0">
-                ⏸
+              <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center shrink-0">
+                <Pause size={18} />
               </div>
               <div>
                 <h3 className="text-sm font-black text-slate-900">
@@ -940,9 +985,9 @@ export default function SuperAdminDashboard() {
               </div>
               <button
                 onClick={() => setIsEditModalOpen(false)}
-                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold"
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center"
               >
-                ✕
+                <X size={14} />
               </button>
             </div>
 

@@ -1,23 +1,44 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Users, FileText, Upload, MessageSquare, Plus, ArrowRight, ShieldCheck, Zap, Receipt } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  Users,
+  FileText,
+  Upload,
+  MessageSquare,
+  Plus,
+  ArrowRight,
+  ShieldCheck,
+  Zap,
+  Building2,
+  ChevronDown,
+  Sparkles,
+  ExternalLink,
+  ArrowLeft
+} from 'lucide-react';
 import SubscriptionPausedBanner from '@/components/SubscriptionPausedBanner';
 import SubscriptionModal from '@/components/SubscriptionModal';
 import PaymentHistoryTable from '@/components/PaymentHistoryTable';
 
-export default function Dashboard() {
+function DashboardContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialCaId = searchParams.get('caId') || 'all';
+
   const [currentUser, setCurrentUser] = useState(null);
+  const [cas, setCas] = useState([]);
+  const [selectedCaId, setSelectedCaId] = useState(initialCaId);
   const [clients, setClients] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
 
+  // Initial user fetch
   useEffect(() => {
-    const fetchData = async () => {
+    const initAuth = async () => {
       const token = localStorage.getItem('token');
       const userStr = localStorage.getItem('user');
 
@@ -26,25 +47,20 @@ export default function Dashboard() {
         return;
       }
 
+      let user = null;
       if (userStr) {
         try {
-          const u = JSON.parse(userStr);
-          setCurrentUser(u);
-          if (u.role === 'superadmin') {
-            router.push('/superadmin');
-            return;
-          }
+          user = JSON.parse(userStr);
+          setCurrentUser(user);
         } catch (e) {}
       }
 
       try {
-        const [meRes, clientRes, docRes] = await Promise.all([
-          fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/clients', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/documents', { headers: { Authorization: `Bearer ${token}` } })
-        ]);
+        const meRes = await fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
 
-        if (meRes.status === 401 || clientRes.status === 401 || docRes.status === 401) {
+        if (meRes.status === 401) {
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           router.push('/login');
@@ -54,52 +70,170 @@ export default function Dashboard() {
         if (meRes.ok) {
           const freshUser = await meRes.json();
           setCurrentUser(freshUser);
-          if (freshUser.role === 'superadmin') {
-            router.push('/superadmin');
-            return;
-          }
+          user = freshUser;
         }
 
-        if (clientRes.ok) {
-          const clientData = await clientRes.json();
-          setClients(clientData);
-        }
-        if (docRes.ok) {
-          const docData = await docRes.json();
-          setDocuments(docData);
+        // If Super Admin, fetch list of all CA firms
+        if (user && user.role === 'superadmin') {
+          const casRes = await fetch('/api/superadmin/cas', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (casRes.ok) {
+            const casData = await casRes.json();
+            setCas(casData);
+          }
         }
       } catch (err) {
-        console.error('Error fetching dashboard data:', err);
+        console.error('Error initializing user:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
-  }, []);
+    initAuth();
+  }, [router]);
+
+  // Sync selectedCaId if URL query changes
+  useEffect(() => {
+    const urlCaId = searchParams.get('caId');
+    if (urlCaId && urlCaId !== selectedCaId) {
+      setSelectedCaId(urlCaId);
+    }
+  }, [searchParams]);
+
+  // Fetch clients & documents whenever selectedCaId changes or currentUser loads
+  useEffect(() => {
+    const fetchFirmData = async () => {
+      const token = localStorage.getItem('token');
+      if (!token || !currentUser) return;
+
+      setDataLoading(true);
+      try {
+        const isSuperAdmin = currentUser.role === 'superadmin';
+        let clientsUrl = '/api/clients';
+        let docsUrl = '/api/documents';
+
+        if (isSuperAdmin && selectedCaId && selectedCaId !== 'all') {
+          clientsUrl += `?caId=${selectedCaId}`;
+          docsUrl += `?caId=${selectedCaId}`;
+        }
+
+        const [clientRes, docRes] = await Promise.all([
+          fetch(clientsUrl, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(docsUrl, { headers: { Authorization: `Bearer ${token}` } })
+        ]);
+
+        if (clientRes.ok) {
+          const clientData = await clientRes.json();
+          setClients(Array.isArray(clientData) ? clientData : []);
+        }
+        if (docRes.ok) {
+          const docData = await docRes.json();
+          setDocuments(Array.isArray(docData) ? docData : []);
+        }
+      } catch (err) {
+        console.error('Error loading firm data:', err);
+      } finally {
+        setDataLoading(false);
+      }
+    };
+
+    fetchFirmData();
+  }, [currentUser, selectedCaId]);
+
+  const isSuperAdmin = currentUser?.role === 'superadmin';
+  const activeSelectedCa = isSuperAdmin && selectedCaId !== 'all' 
+    ? cas.find(c => c._id === selectedCaId) 
+    : null;
+
+  const handleCaChange = (e) => {
+    const newCaId = e.target.value;
+    setSelectedCaId(newCaId);
+    if (newCaId === 'all') {
+      router.push('/dashboard');
+    } else {
+      router.push(`/dashboard?caId=${newCaId}`);
+    }
+  };
 
   return (
     <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
-      {/* Subscription Paused Banner */}
-      <SubscriptionPausedBanner
-        user={currentUser}
-        onOpenUpgrade={() => setIsSubscriptionModalOpen(true)}
-      />
+      {/* Subscription Paused Banner (for CA firms) */}
+      {!isSuperAdmin && (
+        <SubscriptionPausedBanner
+          user={currentUser}
+          onOpenUpgrade={() => setIsSubscriptionModalOpen(true)}
+        />
+      )}
+
+      {/* Super Admin Control Strip */}
+      {isSuperAdmin && (
+        <div className="bg-slate-900 text-white p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-800 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+              <ShieldCheck size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Super Admin Mode</span>
+                <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md font-semibold border border-slate-700">Firm Inspector</span>
+              </div>
+              <div className="text-sm font-black text-slate-100">
+                {activeSelectedCa ? `Viewing: ${activeSelectedCa.firmName || activeSelectedCa.name}` : 'Viewing: All CA Practice Firms'}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+            {/* CA Selector Dropdown */}
+            <div className="relative flex-1 sm:flex-initial">
+              <select
+                value={selectedCaId}
+                onChange={handleCaChange}
+                className="w-full sm:w-64 bg-slate-800 hover:bg-slate-750 text-white text-xs font-semibold px-3 py-2 rounded-xl border border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer appearance-none pr-8"
+              >
+                <option value="all">All CA Firms ({cas.length})</option>
+                {cas.map((ca) => (
+                  <option key={ca._id} value={ca._id}>
+                    {ca.firmName || ca.name} {ca.firmCity ? `(${ca.firmCity})` : ''} - {ca.status === 'active' ? 'Active' : 'Paused'}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            <Link
+              href="/superadmin"
+              className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition"
+            >
+              <ArrowLeft size={14} />
+              <span>Super Admin Console</span>
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Hero Header Banner */}
       <div className="liquid-glass-accent p-6 sm:p-8 rounded-3xl flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
         <div className="space-y-1.5">
-          <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1 rounded-full text-xs font-bold">
-            <span>✨ {currentUser?.firmName || 'Smart CA Vault'}</span>
-            <span className="text-[10px] bg-slate-900 text-white px-2 py-0.5 rounded-full uppercase font-bold">
-              {currentUser?.role === 'sub_ca' ? 'Associate' : 'Firm Admin'}
+          <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1 rounded-full text-xs font-bold">
+            <Sparkles size={12} className="text-emerald-700" />
+            <span>
+              {isSuperAdmin
+                ? activeSelectedCa?.firmName || 'Super Admin Overview'
+                : currentUser?.firmName || 'Smart CA Vault'}
+            </span>
+            <span className="text-[10px] bg-slate-900 text-white px-2 py-0.5 rounded-full uppercase font-bold ml-1">
+              {isSuperAdmin ? 'Super Admin' : currentUser?.role === 'sub_ca' ? 'Associate' : 'Firm Admin'}
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            CA Practice Dashboard
+            {isSuperAdmin && activeSelectedCa ? `${activeSelectedCa.firmName || activeSelectedCa.name} Dashboard` : 'CA Practice Dashboard'}
           </h1>
           <p className="text-slate-600 text-xs sm:text-sm font-medium max-w-xl">
-            Automated client document vault & AWS Bedrock AI WhatsApp delivery portal
+            {isSuperAdmin && activeSelectedCa
+              ? `Managed by ${activeSelectedCa.name} (${activeSelectedCa.email}) • Plan: ${activeSelectedCa.subscription?.plan || 'Professional'}`
+              : 'Automated client document vault & AWS Bedrock AI WhatsApp delivery portal'}
           </p>
         </div>
 
@@ -131,59 +265,48 @@ export default function Dashboard() {
       </div>
 
       {/* Metrics Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-6">
-        <div className="liquid-glass p-5 rounded-2xl sm:rounded-3xl flex items-center gap-3.5">
-          <div className="p-3 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-200 shrink-0">
-            <Users size={22} />
-          </div>
-          <div>
-            <div className="text-xl sm:text-2xl font-black text-slate-900">{loading ? '...' : clients.length}</div>
-            <div className="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-wider">Active Clients</div>
-          </div>
-        </div>
-
-        <div className="liquid-glass p-5 rounded-2xl sm:rounded-3xl flex items-center gap-3.5">
-          <div className="p-3 bg-slate-100 text-slate-700 rounded-2xl border border-slate-200 shrink-0">
-            <FileText size={22} />
-          </div>
-          <div>
-            <div className="text-xl sm:text-2xl font-black text-slate-900">{loading ? '...' : documents.length}</div>
-            <div className="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-wider">Documents</div>
-          </div>
-        </div>
-
-        <div
-          onClick={() => currentUser?.role === 'admin' && setIsSubscriptionModalOpen(true)}
-          className={`liquid-glass p-5 rounded-2xl sm:rounded-3xl flex items-center justify-between gap-3.5 ${
-            currentUser?.role === 'admin' ? 'hover:border-emerald-300 hover:shadow-xs cursor-pointer transition' : ''
-          }`}
-          title={currentUser?.role === 'admin' ? 'Click to change plan' : ''}
-        >
-          <div className="flex items-center gap-3.5">
-            <div className="p-3 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-200 shrink-0">
-              <ShieldCheck size={22} />
+      <div className={`grid grid-cols-1 ${isSuperAdmin ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-4 sm:gap-6`}>
+        {isSuperAdmin && (
+          <div className="liquid-glass p-5 sm:p-6 rounded-2xl sm:rounded-3xl flex items-center gap-4">
+            <div className="p-3.5 bg-slate-900 text-white rounded-2xl shrink-0">
+              <Building2 size={24} />
             </div>
             <div>
-              <div className="text-xl sm:text-2xl font-black text-slate-900 capitalize">
-                {currentUser?.subscription?.plan || 'Professional'}
+              <div className="text-2xl sm:text-3xl font-black text-slate-900">
+                {activeSelectedCa ? '1 Firm' : cas.length}
               </div>
-              <div className="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-wider">Plan Active</div>
+              <div className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-0.5">
+                {activeSelectedCa ? 'Selected CA Firm' : 'Active CA Firms'}
+              </div>
             </div>
           </div>
-          {currentUser?.role === 'admin' && (
-            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-              Manage
-            </span>
-          )}
-        </div>
+        )}
 
-        <div className="liquid-glass p-5 rounded-2xl sm:rounded-3xl flex items-center gap-3.5">
-          <div className="p-3 bg-slate-900 text-emerald-400 rounded-2xl shrink-0">
-            <MessageSquare size={22} />
+        <div className="liquid-glass p-5 sm:p-6 rounded-2xl sm:rounded-3xl flex items-center gap-4">
+          <div className="p-3.5 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-200 shrink-0">
+            <Users size={24} />
           </div>
           <div>
-            <div className="text-xl sm:text-2xl font-black text-emerald-700">Online</div>
-            <div className="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-wider">AI WhatsApp Bot</div>
+            <div className="text-2xl sm:text-3xl font-black text-slate-900">
+              {loading || dataLoading ? '...' : clients.length}
+            </div>
+            <div className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-0.5">
+              {activeSelectedCa ? 'Firm Clients' : 'Active Clients'}
+            </div>
+          </div>
+        </div>
+
+        <div className="liquid-glass p-5 sm:p-6 rounded-2xl sm:rounded-3xl flex items-center gap-4">
+          <div className="p-3.5 bg-slate-100 text-slate-700 rounded-2xl border border-slate-200 shrink-0">
+            <FileText size={24} />
+          </div>
+          <div>
+            <div className="text-2xl sm:text-3xl font-black text-slate-900">
+              {loading || dataLoading ? '...' : documents.length}
+            </div>
+            <div className="text-xs text-slate-500 font-bold uppercase tracking-wider mt-0.5">
+              {activeSelectedCa ? 'Firm Documents' : 'Total Documents'}
+            </div>
           </div>
         </div>
       </div>
@@ -200,22 +323,33 @@ export default function Dashboard() {
             </Link>
           </div>
 
-          {loading ? (
+          {loading || dataLoading ? (
             <div className="text-xs text-slate-400 py-6 text-center">Loading client records...</div>
           ) : clients.length === 0 ? (
             <div className="text-center py-8 text-slate-500 text-xs">
-              No clients added yet. <Link href="/add-client" className="text-emerald-700 font-bold underline">Add client</Link>
+              No clients found for this firm.{' '}
+              <Link href="/add-client" className="text-emerald-700 font-bold underline">
+                Add client
+              </Link>
             </div>
           ) : (
             <div className="space-y-2.5">
               {clients.slice(0, 5).map((c) => (
-                <div key={c._id} className="flex justify-between items-center p-3 rounded-xl bg-slate-50/80 hover:bg-slate-100/80 transition border border-slate-200">
+                <div
+                  key={c._id}
+                  className="flex justify-between items-center p-3 rounded-xl bg-slate-50/80 hover:bg-slate-100/80 transition border border-slate-200"
+                >
                   <div>
                     <div className="font-bold text-slate-900 text-xs sm:text-sm">{c.name}</div>
-                    <div className="text-[11px] text-slate-500">{c.whatsappNumber}</div>
+                    <div className="text-[11px] text-slate-500 flex items-center gap-2">
+                      <span>{c.whatsappNumber}</span>
+                      {isSuperAdmin && c.createdBy?.firmName && (
+                        <span className="text-slate-400">• {c.createdBy.firmName}</span>
+                      )}
+                    </div>
                   </div>
                   <span className="text-[10px] bg-white text-slate-800 font-bold px-2.5 py-0.5 rounded-lg border border-slate-200">
-                    {c.clientType}
+                    {c.clientType || 'Individual'}
                   </span>
                 </div>
               ))}
@@ -237,16 +371,25 @@ export default function Dashboard() {
               <div className="font-bold text-slate-900 text-xs sm:text-sm">Upload File</div>
               <div className="text-[11px] text-slate-500">ITR, GST, TDS documents</div>
             </Link>
-            {currentUser?.role === 'admin' && (
+            {currentUser?.role === 'admin' ? (
               <Link href="/team" className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-slate-800 transition group">
                 <Users className="text-slate-800 mb-2 group-hover:scale-110 transition" size={20} />
                 <div className="font-bold text-slate-900 text-xs sm:text-sm">Manage Sub-CAs</div>
                 <div className="text-[11px] text-slate-500">Associate team access</div>
               </Link>
-            )}
-            <Link href="/whatsapp-simulator" className={`p-4 rounded-2xl bg-white border border-slate-200 hover:border-slate-800 transition group ${
-              currentUser?.role === 'admin' ? '' : 'sm:col-span-2'
-            }`}>
+            ) : isSuperAdmin ? (
+              <Link href="/superadmin" className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-slate-800 transition group">
+                <ShieldCheck className="text-emerald-700 mb-2 group-hover:scale-110 transition" size={20} />
+                <div className="font-bold text-slate-900 text-xs sm:text-sm">CA Master Console</div>
+                <div className="text-[11px] text-slate-500">Manage CA firms & subscriptions</div>
+              </Link>
+            ) : null}
+            <Link
+              href="/whatsapp-simulator"
+              className={`p-4 rounded-2xl bg-white border border-slate-200 hover:border-slate-800 transition group ${
+                currentUser?.role === 'admin' || isSuperAdmin ? '' : 'sm:col-span-2'
+              }`}
+            >
               <MessageSquare className="text-emerald-700 mb-2 group-hover:scale-110 transition" size={20} />
               <div className="font-bold text-slate-900 text-xs sm:text-sm">WhatsApp AI Portal</div>
               <div className="text-[11px] text-slate-500">Test client queries & automated delivery</div>
@@ -283,3 +426,10 @@ export default function Dashboard() {
   );
 }
 
+export default function Dashboard() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-xs text-slate-400">Loading Dashboard...</div>}>
+      <DashboardContent />
+    </Suspense>
+  );
+}

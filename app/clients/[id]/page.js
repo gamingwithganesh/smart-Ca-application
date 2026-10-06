@@ -68,6 +68,8 @@ export default function ClientDocuments({ params }) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showWhatsAppDocModal, setShowWhatsAppDocModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
   const [selectedDoc, setSelectedDoc] = useState(null);
 
   // Upload Form State
@@ -1012,17 +1014,18 @@ export default function ClientDocuments({ params }) {
 
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            {/* View Button -> Opens Pre-Signed URL download route */}
-                            <a
-                              href={`/api/documents/download?id=${doc._id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-300 p-2 rounded-xl transition flex items-center gap-1 font-bold text-[11px]"
-                              title="View / Download File"
+                            {/* Preview Button */}
+                            <button
+                              onClick={() => {
+                                setPreviewDoc(doc);
+                                setShowPreviewModal(true);
+                              }}
+                              className="bg-slate-100 hover:bg-slate-900 text-slate-700 hover:text-white border border-slate-200 p-2 rounded-xl transition flex items-center gap-1 font-bold text-[11px] cursor-pointer"
+                              title="Preview Document"
                             >
                               <Eye size={14} />
-                              <span>View</span>
-                            </a>
+                              <span>Preview</span>
+                            </button>
 
                             {/* Download Button */}
                             <button
@@ -1710,6 +1713,83 @@ export default function ClientDocuments({ params }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 6: MINIMALIST DOCUMENT PREVIEW */}
+      {showPreviewModal && previewDoc && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900 leading-tight">
+                    {previewDoc.documentName || previewDoc.fileName}
+                  </h3>
+                  <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                    {previewDoc.category || previewDoc.documentType || 'Document'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500 font-medium flex items-center gap-2">
+                  <span>FY {previewDoc.financialYear || previewDoc.year || '2024-25'}</span>
+                  <span>•</span>
+                  <span>{previewDoc.paymentStatus === 'COMPLETED' ? 'Paid' : 'Pending'}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowPreviewModal(false)}
+                className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-900 flex items-center justify-center transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Viewer Content */}
+            <div className="flex-1 overflow-auto p-5 sm:p-8 bg-slate-50 flex items-center justify-center min-h-[280px]">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 max-w-md w-full flex flex-col items-center justify-center text-center space-y-3">
+                {previewDoc.mimeType?.includes('image') || previewDoc.fileName?.match(/\.(png|jpe?g|webp|gif|svg)$/i) ? (
+                  <img
+                    src={previewDoc.fileUrl}
+                    alt="Preview"
+                    className="max-h-[360px] w-auto object-contain rounded-xl"
+                  />
+                ) : (
+                  <>
+                    <div className="w-14 h-14 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center justify-center border border-emerald-200">
+                      <FileText size={26} />
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-900 text-sm">
+                        {previewDoc.documentName || previewDoc.fileName}
+                      </div>
+                      <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                        {previewDoc.fileSize ? `${(previewDoc.fileSize / 1024).toFixed(1)} KB` : 'Official Document'}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3.5 sm:p-4 bg-white border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowPreviewModal(false)}
+                className="btn-outline px-4 py-2 rounded-xl text-xs font-semibold"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => handleDownloadDocument(previewDoc.fileUrl || `/api/documents/download?id=${previewDoc._id}`, previewDoc.originalFilename || previewDoc.fileName || 'document.pdf')}
+                className="btn-primary px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 font-bold cursor-pointer"
+              >
+                <Download size={14} />
+                <span>Download</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

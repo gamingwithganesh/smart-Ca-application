@@ -2,6 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  Users,
+  UserPlus,
+  Mail,
+  Phone,
+  Pencil,
+  Trash2,
+  AlertTriangle,
+  Loader2,
+  X
+} from 'lucide-react';
 import SubscriptionPausedBanner from '@/components/SubscriptionPausedBanner';
 
 export default function TeamManagementPage() {
@@ -166,8 +177,9 @@ export default function TeamManagementPage() {
       <div className="liquid-glass rounded-2xl sm:rounded-3xl p-5 sm:p-7 border border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded-full bg-slate-900 text-white font-extrabold text-[11px] uppercase tracking-wider">
-              👥 Team & Sub-CAs
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-900 text-white font-extrabold text-[11px] uppercase tracking-wider">
+              <Users size={12} />
+              <span>Team & Sub-CAs</span>
             </span>
             <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-bold text-[11px] border border-emerald-200">
               {stats.totalCount} / {stats.maxAllowed} Seats Used
@@ -186,13 +198,15 @@ export default function TeamManagementPage() {
           disabled={stats.seatsRemaining <= 0 || currentUser?.isPaused}
           className="w-full sm:w-auto px-4 py-2.5 rounded-xl btn-primary text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
         >
-          <span>➕</span> Add Sub-CA Associate
+          <UserPlus size={15} />
+          <span>Add Sub-CA Associate</span>
         </button>
       </div>
 
       {error && (
-        <div className="p-4 rounded-2xl bg-slate-100 border border-slate-300 text-slate-800 text-xs font-semibold">
-          ⚠️ {error}
+        <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs font-semibold flex items-center gap-2">
+          <AlertTriangle size={15} className="text-red-600" />
+          <span>{error}</span>
         </div>
       )}
 
@@ -208,9 +222,9 @@ export default function TeamManagementPage() {
         </div>
 
         {loading ? (
-          <div className="p-12 text-center text-slate-500 text-xs">
-            <div className="animate-spin text-2xl mb-2">⏳</div>
-            Loading team members...
+          <div className="p-12 text-center text-slate-500 text-xs flex flex-col items-center justify-center gap-2">
+            <Loader2 size={24} className="animate-spin text-slate-700" />
+            <span>Loading team members...</span>
           </div>
         ) : subCas.length === 0 ? (
           <div className="p-12 text-center text-slate-500 text-xs space-y-3">
@@ -218,9 +232,10 @@ export default function TeamManagementPage() {
             <p className="text-slate-400">Click below to create login credentials for your first associate.</p>
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="px-4 py-2 rounded-xl btn-primary text-xs"
+              className="px-4 py-2 rounded-xl btn-primary text-xs inline-flex items-center gap-1.5"
             >
-              Add First Sub-CA
+              <UserPlus size={14} />
+              <span>Add First Sub-CA</span>
             </button>
           </div>
         ) : (
@@ -253,9 +268,17 @@ export default function TeamManagementPage() {
                     </td>
 
                     <td className="p-4">
-                      <div className="space-y-0.5">
-                        <div className="font-semibold text-slate-800">📧 {subCa.email}</div>
-                        {subCa.phone && <div className="text-[11px] text-slate-500">📞 {subCa.phone}</div>}
+                      <div className="space-y-1">
+                        <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                          <Mail size={13} className="text-slate-500" />
+                          <span>{subCa.email}</span>
+                        </div>
+                        {subCa.phone && (
+                          <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                            <Phone size={12} className="text-slate-400" />
+                            <span>{subCa.phone}</span>
+                          </div>
+                        )}
                       </div>
                     </td>
 
@@ -282,15 +305,17 @@ export default function TeamManagementPage() {
                             setSelectedSubCa(subCa);
                             setIsEditModalOpen(true);
                           }}
-                          className="px-2.5 py-1 rounded-xl btn-outline text-xs"
+                          className="px-2.5 py-1 rounded-xl btn-outline text-xs flex items-center gap-1"
                         >
-                          ✏️ Edit
+                          <Pencil size={12} />
+                          <span>Edit</span>
                         </button>
                         <button
                           onClick={() => handleDeleteSubCa(subCa)}
-                          className="px-2.5 py-1 rounded-xl bg-white hover:bg-slate-100 text-slate-400 hover:text-rose-600 font-bold border border-slate-200 text-xs"
+                          className="p-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-400 hover:text-rose-600 font-bold border border-slate-200 transition"
+                          title="Delete Member"
                         >
-                          🗑️
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </td>
@@ -313,9 +338,9 @@ export default function TeamManagementPage() {
               </div>
               <button
                 onClick={() => setIsAddModalOpen(false)}
-                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold"
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center"
               >
-                ✕
+                <X size={15} />
               </button>
             </div>
 
@@ -325,10 +350,9 @@ export default function TeamManagementPage() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. CA Priya Verma"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:bg-white focus:outline-none focus:border-slate-900"
                 />
               </div>
 
@@ -337,10 +361,9 @@ export default function TeamManagementPage() {
                 <input
                   type="email"
                   required
-                  placeholder="priya@firm.com"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:bg-white focus:outline-none focus:border-slate-900"
                 />
               </div>
 
@@ -349,21 +372,19 @@ export default function TeamManagementPage() {
                 <input
                   type="password"
                   required
-                  placeholder="Min 6 characters"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:bg-white focus:outline-none focus:border-slate-900"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="font-bold text-slate-700">Phone / WhatsApp</label>
                 <input
-                  type="text"
-                  placeholder="+91 9876543210"
+                  type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:bg-white focus:outline-none focus:border-slate-900"
                 />
               </div>
 
@@ -399,9 +420,9 @@ export default function TeamManagementPage() {
               </div>
               <button
                 onClick={() => setIsEditModalOpen(false)}
-                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold"
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center"
               >
-                ✕
+                <X size={15} />
               </button>
             </div>
 
@@ -413,7 +434,7 @@ export default function TeamManagementPage() {
                   required
                   value={selectedSubCa.name || ''}
                   onChange={(e) => setSelectedSubCa({ ...selectedSubCa, name: e.target.value })}
-                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:bg-white focus:outline-none focus:border-slate-900"
                 />
               </div>
 
@@ -424,17 +445,17 @@ export default function TeamManagementPage() {
                   required
                   value={selectedSubCa.email || ''}
                   onChange={(e) => setSelectedSubCa({ ...selectedSubCa, email: e.target.value })}
-                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:bg-white focus:outline-none focus:border-slate-900"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="font-bold text-slate-700">Phone</label>
                 <input
-                  type="text"
+                  type="tel"
                   value={selectedSubCa.phone || ''}
                   onChange={(e) => setSelectedSubCa({ ...selectedSubCa, phone: e.target.value })}
-                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:bg-white focus:outline-none focus:border-slate-900"
                 />
               </div>
 
@@ -445,7 +466,7 @@ export default function TeamManagementPage() {
                   placeholder="Leave empty to keep current"
                   value={selectedSubCa.newPassword || ''}
                   onChange={(e) => setSelectedSubCa({ ...selectedSubCa, newPassword: e.target.value })}
-                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800"
+                  className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 focus:bg-white focus:outline-none focus:border-slate-900"
                 />
               </div>
 
