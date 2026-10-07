@@ -1771,6 +1771,26 @@ export default function ClientDocuments({ params }) {
                     </div>
                   </>
                 )}
+
+                {/* Multi-Layer Watermark Overlay (Unpaid Documents) */}
+                {!(previewDoc.paymentStatus === 'COMPLETED' || previewDoc.paymentStatus === 'FREE') && (
+                  <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl flex flex-col justify-around py-4 bg-slate-900/5 backdrop-blur-[0.5px]">
+                    {[1, 2, 3, 4, 5, 6].map((row) => (
+                      <div
+                        key={row}
+                        className="transform -rotate-25 whitespace-nowrap text-center text-slate-800/25 font-black text-sm sm:text-base tracking-[0.25em] uppercase select-none"
+                      >
+                        SMART CA VAULT • PREVIEW COPY • UNPAID DRAFT • SMART CA VAULT
+                      </div>
+                    ))}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="transform -rotate-12 px-6 py-2 rounded-2xl bg-white/70 border-2 border-dashed border-slate-700/30 text-slate-900/60 font-black text-xs sm:text-sm tracking-widest uppercase shadow-sm">
+                        🔒 UNPAID DRAFT • PREVIEW COPY
+                      </div>
+                    </div>
+                    <div className="absolute inset-2 border-2 border-dashed border-slate-700/20 rounded-xl pointer-events-none"></div>
+                  </div>
+                )}
               </div>
             </div>
 

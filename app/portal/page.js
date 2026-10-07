@@ -954,12 +954,28 @@ export default function ClientPortal() {
                   </>
                 )}
 
-                {/* Subtle Minimalist Preview Watermark Stamp (Unpaid) */}
+                {/* Comprehensive Multi-Layer Watermark Overlay (Unpaid Preview) */}
                 {!(previewDoc.paymentStatus === 'COMPLETED' || previewDoc.paymentStatus === 'FREE') && (
-                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center bg-white/40 backdrop-blur-[0.5px] rounded-2xl">
-                    <div className="transform -rotate-12 px-4 py-1.5 rounded-xl bg-slate-900/10 border border-slate-900/20 text-slate-800/50 font-black text-xs sm:text-sm tracking-widest uppercase select-none">
-                      Preview Copy
+                  <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl flex flex-col justify-around py-4 bg-slate-900/5 backdrop-blur-[0.5px]">
+                    {/* Repeating Diagonal Watermark Rows */}
+                    {[1, 2, 3, 4, 5, 6].map((row) => (
+                      <div
+                        key={row}
+                        className="transform -rotate-25 whitespace-nowrap text-center text-slate-800/25 font-black text-sm sm:text-base tracking-[0.25em] uppercase select-none drop-shadow-2xs"
+                      >
+                        {caFirmDisplayName} • PREVIEW ONLY • UNPAID COPY • {caFirmDisplayName}
+                      </div>
+                    ))}
+
+                    {/* Center Prominent Watermark Seal */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="transform -rotate-12 px-6 py-2 rounded-2xl bg-white/70 border-2 border-dashed border-slate-700/30 text-slate-900/60 font-black text-xs sm:text-sm tracking-widest uppercase shadow-sm">
+                        🔒 UNPAID DRAFT • PREVIEW COPY
+                      </div>
                     </div>
+
+                    {/* Security Dashed Perimeter Border */}
+                    <div className="absolute inset-2 border-2 border-dashed border-slate-700/20 rounded-xl pointer-events-none"></div>
                   </div>
                 )}
               </div>
